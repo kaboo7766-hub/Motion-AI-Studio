@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const DAILY_LIMIT=100;
+const DAILY_LIMIT=Number.MAX_SAFE_INTEGER;
 const STORAGE_KEY='motion_ai_daily_100_v3';
 const API_CONFIG_KEY='motion_ai_external_api_v1';
 
@@ -809,14 +809,14 @@ async function triggerVideoConversion(customOpts){
       renderQuotaAndBatch();
     }
 
-    toast('تم إنشاء الفيديو بالحجم الكامل بنجاح!');
+    toast('تم إنشاء الحركة مجاناً. يمكنك معاينتها أو تنزيلها بشكل مستقل.');
   }catch(err){
     console.error(err);
     const reason=err?.message||'خطأ غير معروف';
     toast(`تعذّر التوليد (${reason})`);
   }finally{
     isRendering=false;
-    if(genBtn){genBtn.disabled=false;genBtn.textContent='🎬 تحويل إلى فيديو وتنزيله';}
+    if(genBtn){genBtn.disabled=false;genBtn.textContent='🎬 إنشاء الحركة مجاناً';}
     setTimeout(()=>{if($('renderBox'))$('renderBox').hidden=true;},1400);
   }
 }
@@ -825,9 +825,9 @@ function renderQuotaAndBatch(){
   const count=Math.min(DAILY_LIMIT,Math.max(0,dailyState.producedCount));
   const remaining=Math.max(0,DAILY_LIMIT-count);
   const pct=Math.min(100,(count/DAILY_LIMIT)*100);
-  if($('quotaCount'))$('quotaCount').textContent=`${count} / ${DAILY_LIMIT} فيديو`;
+  if($('quotaCount'))$('quotaCount').textContent=`${count} / غير محدود`;
   if($('quotaFill'))$('quotaFill').style.width=pct+'%';
-  if($('quotaRemaining'))$('quotaRemaining').textContent=`متبقي اليوم: ${remaining} فيديو`;
+  if($('quotaRemaining'))$('quotaRemaining').textContent='التوليد المحلي مجاني وغير محدود';
 
   const pending=dailyState.queue.filter(item=>item.status!=='done').length;
   if($('batchStats'))$('batchStats').textContent=`في الانتظار: ${pending} · مكتمل اليوم: ${count}`;
@@ -835,7 +835,7 @@ function renderQuotaAndBatch(){
   const listEl=$('batchList');
   if(!listEl)return;
   if(!dailyState.queue.length){
-    listEl.innerHTML='<div class="batch-empty">لا توجد عناصر في قائمة إنتاج اليوم بعد. أضف مشاهد إلى الدفعة للوصول إلى خطة 100 فيديو/يوم.</div>';
+    listEl.innerHTML='<div class="batch-empty">لا توجد مشاهد في قائمة الانتظار بعد. أضف مشاهد لتنظيم عملية الإنتاج.</div>';
     return;
   }
   listEl.innerHTML=dailyState.queue.slice().reverse().map(item=>`
@@ -1041,7 +1041,7 @@ $('queueVideoBtn')?.addEventListener('click',()=>{
   });
   saveDailyState();
   renderQuotaAndBatch();
-  toast('تمت إضافة الفيديو إلى قائمة 100 فيديو اليوم');
+  toast('تمت إضافة المشهد إلى قائمة الانتظار');
 });
 
 $('fillFromCommandsBtn')?.addEventListener('click',()=>{
@@ -1147,7 +1147,7 @@ $('exportBatchBtn')?.addEventListener('click',()=>{
   a.download=`daily-100-videos-${dailyState.date}.json`;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  toast('تم تصدير سجل 100 فيديو JSON');
+  toast('تم تصدير سجل الإنتاج JSON');
 });
 
 $('lang').onclick=()=>toast('سيتم إضافة واجهة إنجليزية كاملة في إصدار لاحق');
