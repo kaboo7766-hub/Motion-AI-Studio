@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#09112e">
-<title>Motion AI Studio — تحريك الشخصيات الكامل</title>
+<title>Motion AI Studio — محرر تحريك الشخصيات بالنقاط والمفاصل (2D Bone Rig)</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,6 +20,7 @@
 <div class="preview-stage" id="stage">
 <div class="empty" id="empty"><div class="upload-icon">▧</div><b>ارفع صورة للبدء</b><small>اختر صورة من جهازك وشاهدها كاملة داخل المعاينة</small><button class="primary small" id="chooseBtn">＋ اختيار صورة</button></div>
 <img id="photo" alt="معاينة الصورة" hidden>
+<canvas id="rigOverlay" hidden></canvas>
 <video id="resultVideo" controls playsinline crossorigin="anonymous" hidden></video>
 <div class="stage-overlay" id="stageControls" hidden><button id="playBtn">▶</button><span id="timeLabel">00:00 / 00:05</span><input type="range" min="0" max="100" value="0" id="scrub"><button id="fullscreen">⛶</button></div>
 </div>
@@ -36,15 +37,15 @@
 </div>
 
 <div class="quota-bar" id="quotaBar">
-<div class="quota-top"><span>إنتاج مجاني — بدون حد يومي</span><b id="quotaCount">0 / غير محدود</b></div>
+<div class="quota-top"><span>إنتاج اليوم (حد 100 فيديو / يوم)</span><b id="quotaCount">0 / 100 فيديو</b></div>
 <div class="quota-meter"><div class="quota-fill" id="quotaFill"></div></div>
 <div class="quota-actions">
-<small id="quotaRemaining">إنتاج مجاني غير محدود</small>
+<small id="quotaRemaining">متبقي اليوم: 100 فيديو</small>
 <div style="display:flex;gap:6px;flex-wrap:wrap">
-<button class="outline small" id="queueVideoBtn">＋ إضافة إلى قائمة المشاهد</button>
-<button class="outline small" id="fillFromCommandsBtn">✦ تعبئة من مكتبة الأوامر</button>
-<button class="outline small" id="runBatchBtn">⚡ تجهيز دفعة (حتى 10)</button>
-<button class="outline small" id="resetQuotaBtn">مسح سجل الإنتاج</button>
+<button class="outline small" id="queueVideoBtn">＋ إضافة للدفعة اليومية</button>
+<button class="outline small" id="fillFromCommandsBtn">✦ تعبئة من الـ 100 أمر</button>
+<button class="outline small" id="runBatchBtn">⚡ إنتاج دفعة (حتى 10)</button>
+<button class="outline small" id="resetQuotaBtn">تصفير اليوم</button>
 </div>
 </div>
 </div>
@@ -54,6 +55,55 @@
 <div class="upload-strip" id="drop"><div class="upload-icon">⇧</div><div><b>ارفع صورتك</b><small>PNG · JPG · WEBP</small></div><button class="outline small" id="uploadBtn">تصفح الملفات</button><input type="file" id="file" accept="image/*" hidden></div>
 <label class="label" for="prompt">وصف الحركة</label><textarea id="prompt" placeholder="مثال: الأشخاص يتحركون للأمام ويبتسمون مع حركة طبيعية للرأس واليدين والملابس..."></textarea>
 <div class="label-row"><span class="label">قوالب سريعة</span><button class="text-btn" id="clearPrompt">مسح النص</button></div><div class="presets" id="presets"><button data-prompt="حركة كاميرا بطيئة تقترب من الشخصية، حركة خفيفة للشعر والملابس، إضاءة سينمائية واقعية.">🎥 سينمائي</button><button data-prompt="الشخص يتحرك للأمام بخطوات طبيعية، تفاعل واقعي للجسم والملابس، والكاميرا تتابعه.">🚶 مشي</button><button data-prompt="الشخص يلتفت تدريجياً ناحية الكاميرا، يرفع رأسه ثم يبتسم، حركة طبيعية وناعمة.">🙂 تعبير</button><button data-prompt="حركة أكشن سريعة: اندفاع للأمام، حركة ديناميكية للجسم، كاميرا تتبع مع تأثير سينمائي.">⚡ أكشن</button><button data-prompt="نسيم خفيف يحرك الشعر والأشجار والملابس، السحب تتحرك ببطء، كاميرا ثابتة.">🍃 طبيعة</button><button data-prompt="ضباب كثيف يتدفق ببطء، إضاءة غامضة، حركة كاميرا زحف سينمائي بطيئة.">🌫️ رعب</button></div>
+
+
+<div class="rig-studio" id="rigStudio">
+  <div class="lib-head">
+    <span class="label" style="margin:0">🦴 محرر تحريك أجزاء الشخصية (نقاط ومفاصل 2D Rig)</span>
+    <span class="lib-badge" id="rigCountBadge">0 نقطة مضافة</span>
+  </div>
+  <div class="rig-hint">اختر الجزء المطلوب تحريكه ثم <b>اضغط على مكانه فوق الصورة</b> لتثبيت نقطة الحركة وتحديد نوع حركتها:</div>
+  <div class="rig-part-btns" id="rigPartBtns">
+    <button type="button" class="rig-part-btn active" data-part="head" data-motion="nod">🙂 الرأس</button>
+    <button type="button" class="rig-part-btn" data-part="mouth" data-motion="talk">👄 الفم</button>
+    <button type="button" class="rig-part-btn" data-part="hand_r" data-motion="wave">✋ اليد اليمنى</button>
+    <button type="button" class="rig-part-btn" data-part="hand_l" data-motion="wave">🤚 اليد اليسرى</button>
+    <button type="button" class="rig-part-btn" data-part="chest" data-motion="breathe">🫁 الصدر / الجسم</button>
+    <button type="button" class="rig-part-btn" data-part="leg_r" data-motion="step">🦵 الرجل اليمنى</button>
+    <button type="button" class="rig-part-btn" data-part="leg_l" data-motion="step">🦿 الرجل اليسرى</button>
+    <button type="button" class="rig-part-btn" data-part="pin" data-motion="fixed">📌 مسمار تثبيت (ثابت)</button>
+  </div>
+  <div class="rig-controls-row">
+    <div style="flex:1">
+      <label class="label" style="margin:0 0 4px;font-size:11px">نوع حركة النقطة المختارة</label>
+      <select id="rigMotionType" class="lib-category">
+        <option value="wave">تلويح / رفع وخفض اليد (Wave)</option>
+        <option value="talk">فتح وإغلاق الفم / كلام (Mouth Talk)</option>
+        <option value="nod">إيماءة والتفات الرأس (Head Nod/Turn)</option>
+        <option value="step">خطوة ومشي الرجل (Leg Step)</option>
+        <option value="breathe">تنفّس وتمدد الصدر (Chest Breathe)</option>
+        <option value="sway">تمايل جانبي ناعم (Side Sway)</option>
+        <option value="fixed">تثبيت المكان منعاً للتحرك (Anchor Pin)</option>
+      </select>
+    </div>
+    <div style="width:125px">
+      <label class="label" style="margin:0 0 4px;font-size:11px">مدى الحركة (نطاق)</label>
+      <select id="rigRadius" class="lib-category">
+        <option value="0.06">دقيق (فم / عين)</option>
+        <option value="0.11" selected>متوسط (يد / رأس)</option>
+        <option value="0.17">واسع (رجل / جسم)</option>
+      </select>
+    </div>
+  </div>
+  <div class="rig-quick-actions">
+    <button type="button" class="outline small" id="autoRigPresetBtn">✨ توزيع نقاط تلقائي على الشخصية</button>
+    <button type="button" class="outline small" id="toggleRigPinsBtn">👁 إخفاء/إظهار النقاط</button>
+    <button type="button" class="outline small" id="clearRigPinsBtn">🗑 مسح كل النقاط</button>
+  </div>
+  <div class="rig-pins-list" id="rigPinsList">
+    <div class="batch-empty" style="padding:8px">لم تُضف نقاط حركة بعد — اختر جزءاً (مثل اليد أو الفم أو الرجل) واضغط فوقه على الصورة.</div>
+  </div>
+</div>
 
 <div class="motion-library" id="motionLibrary">
 <div class="lib-head">
@@ -70,22 +120,22 @@
 </div>
 
 <div class="settings-grid">
-<div><label class="label">المؤثر المحلي المجاني (حركة 2D بسيطة)</label><select id="subjectMotion"><option value="auto" selected>حركة بصرية تلقائية بسيطة</option><option value="walk">محاكاة مشي بسيطة</option><option value="talk">محاكاة التفات وتعبير</option><option value="action">محاكاة حركة أكشن</option><option value="none">ثبات الشخصية (كاميرا فقط)</option></select></div>
+<div><label class="label">تحريك الشخصيات (محلي)</label><select id="subjectMotion"><option value="auto" selected>تلقائي ذكي (رأس + جسم + ملابس)</option><option value="walk">مشي وخطوات للأمام</option><option value="talk">التفات وابتسامة وتعبير</option><option value="action">حركة أكشن ديناميكية</option><option value="none">ثبات الشخصية (كاميرا فقط)</option></select></div>
 <div><label class="label">حركة الكاميرا</label><select id="camera"><option value="none">ثابتة (عرض كامل)</option><option value="zoom" selected>تقريب خفيف</option><option value="zoomout">ابتعاد خفيف</option><option value="pan">تحريك أفقي</option><option value="tilt">ميل رأسي</option><option value="orbit">دوران سينمائي</option></select></div>
 <div><label class="label">مدة المشهد</label><select id="duration"><option value="4">4 ثوانٍ</option><option value="5" selected>5 ثوانٍ</option><option value="8">8 ثوانٍ</option><option value="10">10 ثوانٍ</option></select></div>
 <div><label class="label">سرعة وقوة الحركة</label><select id="intensity"><option value="subtle">هادئة وخفيفة</option><option value="medium" selected>طبيعية ومتوسطة</option><option value="strong">قوية ونشطة</option></select></div>
 </div>
 <div class="action-row">
-<button class="primary generate" id="generateVideoBtn">🎬 إنشاء الحركة مجاناً</button>
+<button class="primary generate" id="generateVideoBtn">🎬 تحويل إلى فيديو وتنزيله</button>
 <button class="outline" id="previewMotion">▶ معاينة سريعة</button>
 <button class="outline" id="saveProject">▣ حفظ JSON</button>
 </div>
-<div class="notice" id="engineNotice">تم تفعيل العرض الكامل للصورة + تحريك الأشخاص تلقائياً. التوليد المحلي مجاني ولا يحتاج مفتاح API.</div></section>
+<div class="notice" id="engineNotice">تم تفعيل العرض الكامل للصورة + تحريك الأشخاص تلقائياً. ولتحريك واقعي كامل بالذكاء الاصطناعي (AI)، اربط مفتاح API بالأسفل.</div></section>
 </div>
 
 <section class="panel api-panel" id="apiSection">
 <div class="panel-head">
-<div><h2>إعدادات المحرك الهجين (مجاني + AI احترافي)</h2><small>المحرك المجاني يعمل محلياً، والمحرك الاحترافي يستخدم Kling عبر fal.ai</small></div>
+<div><h2>إعدادات ربط المحرك الخارجي (Image-to-Video AI)</h2><small>اربط المنصة مع fal.ai أو Replicate لتحريك الأشخاص والملامح بالذكاء الاصطناعي الحقيقي</small></div>
 <span class="lib-badge" id="apiStatusBadge">غير متصل (يعمل محلياً)</span>
 </div>
 <div class="api-grid">
@@ -93,22 +143,21 @@
 <label class="label">مزود الخدمة (Provider)</label>
 <select id="apiProvider">
 <option value="local">محرك المتصفح المحلي (بدون API)</option>
-<option value="fal-proxy">AI احترافي عبر fal.ai (Kling 4.0 / Kling 3.0)</option>
+<option value="fal">fal.ai (Kling / Minimax / Luma)</option>
+<option value="replicate">Replicate API (Predictions)</option>
+<option value="custom">خادم مخصص / Webhook (POST JSON)</option>
 </select>
 </div>
 <div>
-<label class="label">موديل الذكاء الاصطناعي الاحترافي</label>
-<select id="apiEndpoint"><option value="kling/v4/image-to-video">Kling 4.0 — جودة عالية</option><option value="fal-ai/kling-video/v3/pro/image-to-video">Kling 3.0 Pro — سينمائي</option></select>
+<label class="label">اسم الموديل / رابط Endpoint</label>
+<input type="text" class="lib-search" id="apiEndpoint" placeholder="مثال: fal-ai/kling-video/v1.6/standard/image-to-video">
 </div>
 <div>
-<label class="label">مفتاح API</label>
-<input type="password" class="lib-search" id="apiKey" placeholder="للمزودات القديمة فقط — لا تضع FAL_KEY هنا">
-<small>ضع FAL_KEY و MOTION_API_ACCESS_CODE في Vercel Environment Variables. لا تضع FAL_KEY في المتصفح.</small>
-<label class="label" style="margin-top:10px">رمز الوصول الخاص بالمشروع (Access Code)</label>
-<input type="password" class="lib-search" id="apiAccessCode" placeholder="أدخل نفس قيمة MOTION_API_ACCESS_CODE في Vercel">
+<label class="label">مفتاح API (API Key / Token)</label>
+<input type="password" class="lib-search" id="apiKey" placeholder="أدخل مفتاح API الخاص بك...">
 </div>
 <div>
-<label class="label">رابط Proxy اختياري للمزودات المخصصة</label>
+<label class="label">رابط Proxy اختياري (لتجاوز CORS في المتصفح)</label>
 <input type="text" class="lib-search" id="apiProxy" placeholder="اختياري: /api/video">
 </div>
 </div>
@@ -118,13 +167,13 @@
 <button class="outline small" id="clearApiBtn">إلغاء الربط والعودة للمحلي</button>
 </div>
 <div class="notice" style="margin-top:10px">
-الوضع المجاني المحلي يصنع حركة بصرية بسيطة داخل المتصفح، وليس تحريكاً بشرياً حقيقياً. وضع AI الاحترافي يرسل الصورة إلى Kling عبر خادم Vercel آمن؛ وقد تُخصم تكلفة حسب نموذج الفيديو ومدته. لا تضع مفتاح FAL_KEY في المتصفح.
+ملاحظة: محرك المتصفح المحلي يحرّك الأشخاص عبر تشويه شبكي مرن (Mesh/Wave Motion) للرأس والجسم والملابس، بينما المحرك الخارجي (مثل Kling عبر fal.ai) يولّد حركة بشرية ثلاثية الأبعاد كاملة (مشي، كلام، تعبيرات وجه ويدين).
 </div>
 </section>
 
 <section class="panel batch-panel" id="batchSection">
 <div class="panel-head">
-<div><h2>سجل إنتاج المشاهد</h2><small>إدارة قائمة الانتظار وتحويل أي مشهد إلى فيديو</small></div>
+<div><h2>سجل إنتاج 100 فيديو اليوم</h2><small>إدارة قائمة الانتظار وتحويل أي مشهد إلى فيديو مباشر</small></div>
 <div class="batch-summary">
 <span id="batchStats">في الانتظار: 0 · مكتمل اليوم: 0</span>
 <button class="outline small" id="exportBatchBtn">تصدير سجل اليوم JSON</button>

@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const DAILY_LIMIT=Number.MAX_SAFE_INTEGER;
+const DAILY_LIMIT=100;
 const STORAGE_KEY='motion_ai_daily_100_v3';
 const API_CONFIG_KEY='motion_ai_external_api_v1';
 
@@ -165,7 +165,6 @@ const COMMANDS_100=(()=>{
 
 const DEFAULT_ENDPOINTS={
   local:'',
-  'fal-proxy':'kling/v4/image-to-video',
   fal:'https://queue.fal.run/fal-ai/kling-video/v1.6/standard/image-to-video',
   replicate:'https://api.replicate.com/v1/predictions',
   custom:'https://your-server.example.com/api/image-to-video'
@@ -174,12 +173,10 @@ const DEFAULT_ENDPOINTS={
 function loadApiConfig(){
   try{
     const raw=localStorage.getItem(API_CONFIG_KEY);
-    if(!raw)return {provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
-    const cfg=Object.assign({provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p'},JSON.parse(raw));
-    if(cfg.provider==='fal'){cfg.provider='fal-proxy';cfg.endpoint='kling/v4/image-to-video';cfg.apiKey='';}
-    return cfg;
+    if(!raw)return {provider:'local',endpoint:'',apiKey:'',proxy:''};
+    return Object.assign({provider:'local',endpoint:'',apiKey:'',proxy:''},JSON.parse(raw));
   }catch(_){
-    return {provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
+    return {provider:'local',endpoint:'',apiKey:'',proxy:''};
   }
 }
 
@@ -191,31 +188,26 @@ function saveApiConfig(){
 }
 
 function isExternalApiActive(){
-  return apiConfig.provider==='fal-proxy'||(apiConfig.provider!=='local'&&(Boolean(apiConfig.apiKey)||Boolean(apiConfig.proxy)));
+  return apiConfig.provider!=='local'&&(Boolean(apiConfig.apiKey)||Boolean(apiConfig.proxy));
 }
 
 function updateApiUI(){
   if($('apiProvider'))$('apiProvider').value=apiConfig.provider||'local';
   if($('apiEndpoint'))$('apiEndpoint').value=apiConfig.endpoint||DEFAULT_ENDPOINTS[apiConfig.provider]||'';
-  if($('apiKey'))$('apiKey').disabled=apiConfig.provider==='fal-proxy';
-  if($('apiAccessCode'))$('apiAccessCode').value=apiConfig.accessCode||'';
-  if($('apiAccessCode'))$('apiAccessCode').disabled=apiConfig.provider!=='fal-proxy';
-  if($('apiProxy'))$('apiProxy').disabled=apiConfig.provider==='fal-proxy';
   if($('apiKey'))$('apiKey').value=apiConfig.apiKey||'';
   if($('apiProxy'))$('apiProxy').value=apiConfig.proxy||'';
 
   const active=isExternalApiActive();
-  const names={local:'محلي مجاني','fal-proxy':'Kling AI احترافي',fal:'fal.ai',replicate:'Replicate',custom:'خادم مخصص'};
+  const names={local:'محلي',fal:'fal.ai',replicate:'Replicate',custom:'خادم مخصص'};
   const pName=names[apiConfig.provider]||'محلي';
 
-  if($('apiStatusBadge'))$('apiStatusBadge').textContent=apiConfig.provider==='fal-proxy'?'تم اختيار AI — يلزم إعداد FAL_KEY و Access Code في Vercel':active?`متصل: ${pName}`:'الوضع المجاني المحلي';
+  if($('apiStatusBadge'))$('apiStatusBadge').textContent=active?`متصل: ${pName}`:'غير متصل (يعمل محلياً)';
   if($('renderBadge'))$('renderBadge').textContent=active?`API · ${apiConfig.provider.toUpperCase()}`:'LOCAL ENGINE';
   if($('engineModePill'))$('engineModePill').textContent=active?`✦ ${pName} API`:'✦ LOCAL AI';
   if($('engineNotice')){
-    $('engineNotice').textContent=apiConfig.provider==='fal-proxy'
-      ?'وضع AI الاحترافي محدد. أضف FAL_KEY و MOTION_API_ACCESS_CODE في Vercel، ثم أدخل رمز الوصول هنا. قد تُخصم تكلفة لكل عملية توليد.'
-      :active?`متصل حالياً بمحرك (${pName}). سيتم إرسال الصورة إلى مزود AI لتوليد الفيديو.`
-      :'الوضع المجاني المحلي يصنع حركة بصرية بسيطة، وليس تحريكاً بشرياً حقيقياً.';
+    $('engineNotice').textContent=active
+      ?`متصل حالياً بمحرك (${pName}). سيتم عرض الصورة والفيديو بالحجم الكامل وتحريك الأشخاص بالذكاء الاصطناعي.`
+      :'الوضع الحالي: عرض كامل للصورة + تحريك الأشخاص محلياً (تنفّس، إيماءة رأس، حركة جسم وملابس). ولتحريك واقعي كامل بالذكاء الاصطناعي اربط مفتاح API بالأسفل.';
   }
 }
 
@@ -284,47 +276,6 @@ function getOptimizedImageDataUrl(){
   c.height=Math.round(srcH*scale);
   c.getContext('2d').drawImage(loadedImgEl,0,0,c.width,c.height);
   return c.toDataURL('image/jpeg',0.9);
-}
-
-async function generateViaFalProxy(opts){
-  const imgData=getOptimizedImageDataUrl();
-  if(!imgData)throw new Error('لا توجد صورة جاهزة للإرسال');
-  const model=apiConfig.endpoint||'kling/v4/image-to-video';
-  if(typeof opts.onProgress==='function')opts.onProgress(8,'جاري إرسال الصورة بأمان إلى محرك Kling...');
-  const submitRes=await fetch('/api/motion',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-motion-access':apiConfig.accessCode||''},
-    body:JSON.stringify({
-      action:'submit',
-      model,
-      imageDataUrl:imgData,
-      prompt:opts.prompt||'Natural realistic full-body human movement, preserve the character identity and clothing.',
-      duration:Math.max(3,Math.min(30,Number(opts.duration)||5)),
-      resolution:'1080p'
-    })
-  });
-  const submitData=await submitRes.json().catch(()=>({}));
-  if(!submitRes.ok)throw new Error(submitData.error||'تعذر بدء طلب AI الاحترافي');
-  if(!submitData.request_id)throw new Error('لم يرجع مزود AI رقم الطلب');
-  for(let attempt=1;attempt<=180;attempt++){
-    await new Promise(resolve=>setTimeout(resolve,4000));
-    const statusRes=await fetch('/api/motion?action=status&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id),{headers:{'x-motion-access':apiConfig.accessCode||''}});
-    const statusData=await statusRes.json().catch(()=>({}));
-    if(!statusRes.ok)throw new Error(statusData.error||'تعذر متابعة طلب AI');
-    const state=String(statusData.status||'').toUpperCase();
-    if(typeof opts.onProgress==='function')opts.onProgress(Math.min(94,12+Math.round(attempt/180*82)),state==='IN_QUEUE'?'طلبك في قائمة انتظار Kling...':'جاري إنشاء حركة الشخصية بالذكاء الاصطناعي...');
-    if(state==='FAILED'||state==='CANCELLED')throw new Error(statusData.error||'فشل توليد الفيديو من مزود AI');
-    if(state==='COMPLETED'){
-      const resultRes=await fetch('/api/motion?action=result&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id),{headers:{'x-motion-access':apiConfig.accessCode||''}});
-      const resultData=await resultRes.json().catch(()=>({}));
-      if(!resultRes.ok)throw new Error(resultData.error||'تعذر استلام الفيديو النهائي');
-      const videoUrl=resultData.video?.url||resultData.data?.video?.url;
-      if(!videoUrl)throw new Error('اكتمل الطلب لكن رابط الفيديو غير موجود');
-      if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل توليد الفيديو البشري الاحترافي!');
-      return {url:videoUrl,ext:'mp4',duration:Number(opts.duration)||5,source:'Kling AI via fal.ai'};
-    }
-  }
-  throw new Error('انتهت مهلة انتظار محرك AI؛ يمكنك إعادة المحاولة لاحقاً');
 }
 
 async function generateViaExternalApi(opts){
@@ -473,6 +424,237 @@ async function generateViaExternalApi(opts){
 
 // Artifact-Free Full-Frame Character & Scene Animator (Continuous 2D Mesh Grid Deformation)
 // Uses a 16x16 bilinear-interpolated mesh with smooth Gaussian weight falloff so there are ZERO horizontal slice tears, seams, or edge clipping.
+
+// ============================================================================
+// Interactive 2D Character Rigging System (Pins & Anatomical Part Animators)
+// Allows placing custom motion pins on Head, Mouth, Hands, Chest, Legs, or Anchor Pins
+// ============================================================================
+const PART_LABELS={
+  head:'🙂 الرأس',
+  mouth:'👄 الفم',
+  hand_r:'✋ اليد اليمنى',
+  hand_l:'🤚 اليد اليسرى',
+  chest:'🫁 الصدر / الجسم',
+  leg_r:'🦵 الرجل اليمنى',
+  leg_l:'🦿 الرجل اليسرى',
+  pin:'📌 مسمار تثبيت'
+};
+
+const MOTION_LABELS={
+  wave:'تلويح / رفع اليد',
+  talk:'تحريك الفم / كلام',
+  nod:'إيماءة والتفات الرأس',
+  step:'خطوة ومشي الرجل',
+  breathe:'تنفّس الصدر',
+  sway:'تمايل جانبي',
+  fixed:'تثبيت ثابت (مسمار)'
+};
+
+let rigPins=[]; // { id, part, motion, u, v, radius, phase }
+let selectedPart='head';
+let showRigPins=true;
+let draggingPinId=null;
+let previewRafId=null;
+
+function syncRigOverlaySize(){
+  const overlay=$('rigOverlay');
+  const photo=$('photo');
+  if(!overlay||!photo||photo.hidden)return;
+  const w=photo.clientWidth||photo.naturalWidth||320;
+  const h=photo.clientHeight||photo.naturalHeight||240;
+  if(overlay.width!==w||overlay.height!==h){
+    overlay.width=w;
+    overlay.height=h;
+  }
+  overlay.hidden=!imageUrl;
+  drawRigOverlay(0);
+}
+
+function computePinDisplacement(pin,u,v,rawT,intensityMul){
+  const dx=u-pin.u;
+  const dy=v-pin.v;
+  const r=pin.radius||0.11;
+  // Smooth bell-curve weight around the placed pin
+  const dist2=(dx*dx+dy*dy)/(r*r);
+  if(dist2>4.5)return {ox:0,oy:0,anchor:0};
+  const w=Math.exp(-dist2);
+
+  if(pin.motion==='fixed'){
+    return {ox:0,oy:0,anchor:w};
+  }
+
+  const ph=pin.phase||0;
+  let ox=0,oy=0;
+
+  if(pin.motion==='wave'){
+    // Natural hand/arm waving & lifting arc
+    const waveAng=Math.sin(rawT*Math.PI*4+ph);
+    const lift=0.5-0.5*Math.cos(rawT*Math.PI*2+ph);
+    ox=waveAng*0.042*intensityMul*w;
+    oy=(-lift*0.032+Math.cos(rawT*Math.PI*4+ph)*0.014)*intensityMul*w;
+  }else if(pin.motion==='talk'){
+    // Localized vertical jaw/lip opening & closing cycle
+    const talkCycle=Math.abs(Math.sin(rawT*Math.PI*9+ph))*Math.abs(Math.sin(rawT*Math.PI*2.5));
+    // Lower half of mouth moves downward slightly while upper lip moves minimally
+    const jawDir=dy>=0?1.0:-0.25;
+    oy=jawDir*talkCycle*0.022*intensityMul*w;
+    ox=dx*talkCycle*0.04*intensityMul*w;
+  }else if(pin.motion==='nod'){
+    // Smooth head nod & subtle turn
+    const turn=Math.sin(rawT*Math.PI*2.5+ph);
+    const nod=Math.sin(rawT*Math.PI*4+ph);
+    ox=turn*0.025*intensityMul*w;
+    oy=nod*0.018*intensityMul*w;
+  }else if(pin.motion==='step'){
+    // Leg walking stride forward/back + lift
+    const stride=Math.sin(rawT*Math.PI*4+ph);
+    const lift=Math.max(0,Math.sin(rawT*Math.PI*4+ph));
+    ox=stride*0.038*intensityMul*w;
+    oy=-lift*0.032*intensityMul*w;
+  }else if(pin.motion==='breathe'){
+    // Chest expansion & gentle rise
+    const br=0.5-0.5*Math.cos(rawT*Math.PI*3+ph);
+    ox=dx*br*0.18*intensityMul*w;
+    oy=-br*0.016*intensityMul*w;
+  }else if(pin.motion==='sway'){
+    const sw=Math.sin(rawT*Math.PI*3+ph);
+    ox=sw*0.03*intensityMul*w;
+    oy=Math.abs(sw)*0.008*intensityMul*w;
+  }
+
+  return {ox,oy,anchor:0};
+}
+
+function drawRigOverlay(rawT){
+  const overlay=$('rigOverlay');
+  if(!overlay||overlay.hidden)return;
+  const ctx=overlay.getContext('2d');
+  const W=overlay.width;
+  const H=overlay.height;
+  ctx.clearRect(0,0,W,H);
+
+  // If live preview is running with pins, render deformed live mesh onto overlay so user sees exact part motion immediately!
+  if(playing&&rigPins.length>0&&loadedImgEl){
+    const cols=18,rows=18;
+    const intensityMul=$('intensity')?.value==='strong'?1.45:$('intensity')?.value==='subtle'?0.7:1.0;
+    ctx.drawImage(loadedImgEl,0,0,W,H);
+    const grid=[];
+    for(let r=0;r<=rows;r++){
+      const v=r/rows;
+      const pinV=Math.pow(Math.sin(v*Math.PI),0.6);
+      const rowPts=[];
+      for(let c=0;c<=cols;c++){
+        const u=c/cols;
+        const pinU=Math.pow(Math.sin(u*Math.PI),0.6);
+        const borderPin=pinU*pinV;
+        let totOx=0,totOy=0,maxAnchor=0;
+        for(const p of rigPins){
+          const d=computePinDisplacement(p,u,v,rawT,intensityMul);
+          totOx+=d.ox;
+          totOy+=d.oy;
+          if(d.anchor>maxAnchor)maxAnchor=d.anchor;
+        }
+        const damp=(1-Math.min(1,maxAnchor))*borderPin;
+        rowPts.push({
+          u:u*W,
+          v:v*H,
+          x:u*W+totOx*W*damp,
+          y:v*H+totOy*H*damp
+        });
+      }
+      grid.push(rowPts);
+    }
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const p00=grid[r][c],p10=grid[r][c+1],p01=grid[r+1][c],p11=grid[r+1][c+1];
+        drawTexturedTriangle(ctx,loadedImgEl,p00.x,p00.y,p10.x,p10.y,p11.x,p11.y,p00.u*(loadedImgEl.naturalWidth/W),p00.v*(loadedImgEl.naturalHeight/H),p10.u*(loadedImgEl.naturalWidth/W),p10.v*(loadedImgEl.naturalHeight/H),p11.u*(loadedImgEl.naturalWidth/W),p11.v*(loadedImgEl.naturalHeight/H));
+        drawTexturedTriangle(ctx,loadedImgEl,p00.x,p00.y,p11.x,p11.y,p01.x,p01.y,p00.u*(loadedImgEl.naturalWidth/W),p00.v*(loadedImgEl.naturalHeight/H),p11.u*(loadedImgEl.naturalWidth/W),p11.v*(loadedImgEl.naturalHeight/H),p01.u*(loadedImgEl.naturalWidth/W),p01.v*(loadedImgEl.naturalHeight/H));
+      }
+    }
+  }
+
+  if(!showRigPins||!rigPins.length)return;
+
+  for(const p of rigPins){
+    const px=p.u*W;
+    const py=p.v*H;
+    const radPx=(p.radius||0.11)*Math.min(W,H);
+    const isFixed=p.motion==='fixed';
+
+    // Influence circle
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(px,py,radPx,0,Math.PI*2);
+    ctx.fillStyle=isFixed?'rgba(255,110,130,0.12)':'rgba(87,220,255,0.14)';
+    ctx.fill();
+    ctx.lineWidth=1.5;
+    ctx.setLineDash([4,4]);
+    ctx.strokeStyle=isFixed?'rgba(255,120,145,0.75)':'rgba(87,220,255,0.85)';
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Center joint pin
+    ctx.beginPath();
+    ctx.arc(px,py,7,0,Math.PI*2);
+    ctx.fillStyle=isFixed?'#ff5c7c':'#57dcff';
+    ctx.fill();
+    ctx.lineWidth=2;
+    ctx.strokeStyle='#ffffff';
+    ctx.stroke();
+
+    // Label tag
+    const label=(PART_LABELS[p.part]||p.part);
+    ctx.font='bold 11px Cairo, sans-serif';
+    const tw=ctx.measureText(label).width+12;
+    const lx=Math.max(4,Math.min(W-tw-4,px-tw/2));
+    const ly=py-14<18?py+22:py-12;
+    ctx.fillStyle='rgba(9,16,38,0.88)';
+    ctx.fillRect(lx,ly-12,tw,17);
+    ctx.fillStyle='#ffffff';
+    ctx.fillText(label,lx+6,ly);
+    ctx.restore();
+  }
+}
+
+function renderRigPinsList(){
+  const listEl=$('rigPinsList');
+  const badge=$('rigCountBadge');
+  if(badge)badge.textContent=`${rigPins.length} نقطة مضافة`;
+  if(!listEl)return;
+  if(!rigPins.length){
+    listEl.innerHTML='<div class="batch-empty" style="padding:8px">لم تُضف نقاط حركة بعد — اختر جزءاً (مثل اليد أو الفم أو الرجل) واضغط فوقه على الصورة.</div>';
+    return;
+  }
+  listEl.innerHTML=rigPins.map((p,idx)=>`
+    <div class="rig-pin-item">
+      <div>
+        <b>${idx+1}. ${PART_LABELS[p.part]||p.part}</b>
+        <small> · ${MOTION_LABELS[p.motion]||p.motion} (${Math.round(p.u*100)}%, ${Math.round(p.v*100)}%)</small>
+      </div>
+      <button type="button" class="rig-pin-del" data-del-pin="${p.id}">حذف ✕</button>
+    </div>
+  `).join('');
+}
+
+function addRigPin(u,v){
+  const motion=$('rigMotionType')?.value||'wave';
+  const radius=Number($('rigRadius')?.value)||0.11;
+  // Opposite phase for left vs right limbs so walking/waving alternates naturally
+  const phase=(selectedPart==='leg_l'||selectedPart==='hand_l')?Math.PI:0;
+  rigPins.push({
+    id:'pin-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),
+    part:selectedPart,
+    motion,
+    u:Math.max(0.05,Math.min(0.95,u)),
+    v:Math.max(0.05,Math.min(0.95,v)),
+    radius,
+    phase
+  });
+  renderRigPinsList();
+  drawRigOverlay(0);
+  toast(`تمت إضافة حركة (${PART_LABELS[selectedPart]}) على الصورة`);
+}
+
 function detectSubjectCenter(srcCanvas,W,H){
   // Estimate skin-tone / warm-subject center of mass so character motion focuses accurately on the person(s)
   try{
@@ -626,7 +808,7 @@ async function renderRealVideoLocal(opts){
       ctx.drawImage(srcCanvas,-W/2,-H/2,W,H);
 
       const pMode=effects.personMode;
-      if(pMode!=='none'){
+      if(pMode!=='none'||rigPins.length>0){
         // Build continuous 2D mesh grid with pinned outer edges (boundary=0 displacement) and smooth Gaussian character articulation
         const grid=[];
         const breath=Math.sin(rawT*Math.PI*3);
@@ -695,6 +877,23 @@ async function renderRealVideoLocal(opts){
             if(effects.breeze){
               const wind=Math.sin(rawT*Math.PI*4+v*5+u*3)*W*0.007*intensityMul*(wHead*0.8+wChest*0.6+wLower*0.9);
               offX+=wind;
+            }
+
+            // Apply user-placed 2D Rig Pins (Hand, Mouth, Head, Leg, Chest, Anchor Pins)
+            if(rigPins.length>0){
+              // If user placed custom pins, reduce generic auto-body sway so custom parts stand out cleanly
+              offX*=0.35;
+              offY*=0.35;
+              let maxAnchor=0;
+              for(const pin of rigPins){
+                const disp=computePinDisplacement(pin,u,v,rawT,intensityMul);
+                offX+=disp.ox*W*borderPin;
+                offY+=disp.oy*H*borderPin;
+                if(disp.anchor>maxAnchor)maxAnchor=disp.anchor;
+              }
+              const anchorDamp=1-Math.min(1,maxAnchor);
+              offX*=anchorDamp;
+              offY*=anchorDamp;
             }
 
             rowPts.push({
@@ -783,6 +982,7 @@ function showRenderedVideo(result,title){
   const vid=$('resultVideo');
   const photo=$('photo');
   if(photo)photo.hidden=true;
+  if($('rigOverlay'))$('rigOverlay').hidden=true;
   if($('empty'))$('empty').hidden=true;
   if($('stageControls'))$('stageControls').hidden=true;
   if($('stage'))$('stage').classList.add('has-media');
@@ -834,9 +1034,7 @@ async function triggerVideoConversion(customOpts){
 
   try{
     let res;
-    if(apiConfig.provider==='fal-proxy'){
-      res=await generateViaFalProxy(reqOpts);
-    }else if(isExternalApiActive()){
+    if(isExternalApiActive()){
       res=await generateViaExternalApi(reqOpts);
     }else{
       res=await renderRealVideoLocal(reqOpts);
@@ -860,14 +1058,14 @@ async function triggerVideoConversion(customOpts){
       renderQuotaAndBatch();
     }
 
-    toast('تم إنشاء الحركة مجاناً. يمكنك معاينتها أو تنزيلها بشكل مستقل.');
+    toast('تم إنشاء الفيديو بالحجم الكامل بنجاح!');
   }catch(err){
     console.error(err);
     const reason=err?.message||'خطأ غير معروف';
     toast(`تعذّر التوليد (${reason})`);
   }finally{
     isRendering=false;
-    if(genBtn){genBtn.disabled=false;genBtn.textContent='🎬 إنشاء الحركة مجاناً';}
+    if(genBtn){genBtn.disabled=false;genBtn.textContent='🎬 تحويل إلى فيديو وتنزيله';}
     setTimeout(()=>{if($('renderBox'))$('renderBox').hidden=true;},1400);
   }
 }
@@ -876,9 +1074,9 @@ function renderQuotaAndBatch(){
   const count=Math.min(DAILY_LIMIT,Math.max(0,dailyState.producedCount));
   const remaining=Math.max(0,DAILY_LIMIT-count);
   const pct=Math.min(100,(count/DAILY_LIMIT)*100);
-  if($('quotaCount'))$('quotaCount').textContent=`${count} / غير محدود`;
+  if($('quotaCount'))$('quotaCount').textContent=`${count} / ${DAILY_LIMIT} فيديو`;
   if($('quotaFill'))$('quotaFill').style.width=pct+'%';
-  if($('quotaRemaining'))$('quotaRemaining').textContent='التوليد المحلي مجاني وغير محدود';
+  if($('quotaRemaining'))$('quotaRemaining').textContent=`متبقي اليوم: ${remaining} فيديو`;
 
   const pending=dailyState.queue.filter(item=>item.status!=='done').length;
   if($('batchStats'))$('batchStats').textContent=`في الانتظار: ${pending} · مكتمل اليوم: ${count}`;
@@ -886,7 +1084,7 @@ function renderQuotaAndBatch(){
   const listEl=$('batchList');
   if(!listEl)return;
   if(!dailyState.queue.length){
-    listEl.innerHTML='<div class="batch-empty">لا توجد مشاهد في قائمة الانتظار بعد. أضف مشاهد لتنظيم عملية الإنتاج.</div>';
+    listEl.innerHTML='<div class="batch-empty">لا توجد عناصر في قائمة إنتاج اليوم بعد. أضف مشاهد إلى الدفعة للوصول إلى خطة 100 فيديو/يوم.</div>';
     return;
   }
   listEl.innerHTML=dailyState.queue.slice().reverse().map(item=>`
@@ -964,6 +1162,8 @@ function switchToImageView(){
   if($('resultVideo')){$('resultVideo').pause();$('resultVideo').hidden=true;}
   if(imageUrl){
     $('photo').hidden=false;
+    if($('rigOverlay'))$('rigOverlay').hidden=false;
+    setTimeout(syncRigOverlaySize,30);
     $('stageControls').hidden=false;
     $('empty').hidden=true;
     if($('stage'))$('stage').classList.add('has-media');
@@ -992,6 +1192,8 @@ function setImage(file){
   $('photo').src=imageUrl;
   switchToImageView();
   $('photo').hidden=false;
+    if($('rigOverlay'))$('rigOverlay').hidden=false;
+    setTimeout(syncRigOverlaySize,30);
   $('empty').hidden=true;
   $('stageControls').hidden=false;
   if($('stage'))$('stage').classList.add('has-media');
@@ -1015,12 +1217,11 @@ $('saveApiBtn')?.addEventListener('click',()=>{
   const endpoint=($('apiEndpoint')?.value||'').trim();
   const apiKey=($('apiKey')?.value||'').trim();
   const proxy=($('apiProxy')?.value||'').trim();
-  const accessCode=($('apiAccessCode')?.value||'').trim();
 
-  if(provider!=='local'&&provider!=='fal-proxy'&&!apiKey&&!proxy){
+  if(provider!=='local'&&!apiKey&&!proxy){
     return toast('أدخل مفتاح API أو رابط Proxy أولاً لتفعيل الربط الخارجي');
   }
-  apiConfig={provider,endpoint,apiKey:provider==='fal-proxy'?'':apiKey,proxy:provider==='fal-proxy'?'':proxy,resolution:'1080p',accessCode:provider==='fal-proxy'?accessCode:''};
+  apiConfig={provider,endpoint,apiKey,proxy};
   saveApiConfig();
   toast('تم حفظ إعدادات المحرك الخارجي وتفعيلها!');
 });
@@ -1029,8 +1230,7 @@ $('testApiBtn')?.addEventListener('click',()=>{
   const provider=$('apiProvider')?.value||'local';
   const apiKey=($('apiKey')?.value||'').trim();
   const proxy=($('apiProxy')?.value||'').trim();
-  if(provider==='local')return toast('أنت حالياً على الوضع المجاني المحلي.');
-  if(provider==='fal-proxy')return toast('أضف FAL_KEY و MOTION_API_ACCESS_CODE في Vercel، ثم احفظ رمز الوصول هنا.');
+  if(provider==='local')return toast('أنت حالياً على الوضع المحلي، اختر مزود API أولاً');
   if(!apiKey&&!proxy)return toast('يرجى إدخال مفتاح API أو رابط Proxy للاختبار');
   toast(`الإعدادات جاهزة لـ (${provider}) — ارفع صورة واضغط تحويل إلى فيديو للتجربة`);
 });
@@ -1047,8 +1247,8 @@ $('drop').addEventListener('drop',e=>{e.preventDefault();$('drop').style.borderC
 $('presets').addEventListener('click',e=>{const b=e.target.closest('button[data-prompt]');if(!b)return;$('prompt').value=b.dataset.prompt;$('prompt').focus()});
 $('clearPrompt').onclick=()=>{$('prompt').value='';selectedCommandId=null;renderCommands();$('prompt').focus()};
 
-function stopMotion(){playing=false;clearInterval(timer);$('playBtn').textContent='▶';$('photo').classList.remove('motion-play','motion-zoom','motion-zoomout','motion-pan','motion-tilt','motion-orbit','char-breathe','char-walk','char-talk','char-action');$('scrub').value=0;$('trackProgress').style.width='0%';$('status').textContent=imageUrl?'الصورة معروضة بالكامل وجاهزة للتحويل':'جاهز لاستقبال الصورة'}
-function play(){if(!imageUrl)return toast('ارفع صورة أولاً');switchToImageView();const cam=$('camera').value;const subMode=$('subjectMotion')?.value||'auto';const effects=parsePromptEffects($('prompt').value,subMode);const camCls={zoom:'motion-zoom',zoomout:'motion-zoomout',pan:'motion-pan',tilt:'motion-tilt',orbit:'motion-orbit'}[cam];const charCls={breathe:'char-breathe',walk:'char-walk',talk:'char-talk',action:'char-action'}[effects.personMode];$('photo').classList.remove('motion-zoom','motion-zoomout','motion-pan','motion-tilt','motion-orbit','char-breathe','char-walk','char-talk','char-action');if(camCls)$('photo').classList.add(camCls);else if(charCls)$('photo').classList.add(charCls);$('photo').style.setProperty('--dur',$('duration').value+'s');const dur=Number($('duration').value);playing=true;$('playBtn').textContent='❚❚';$('status').textContent='معاينة حركة الشخصيات والمشهد تعمل';let start=Date.now();clearInterval(timer);timer=setInterval(()=>{let p=Math.min(100,(Date.now()-start)/(dur*1000)*100);$('scrub').value=p;$('trackProgress').style.width=p+'%';$('timeLabel').textContent=`00:${String(Math.floor(p/100*dur)).padStart(2,'0')} / 00:${String(dur).padStart(2,'0')}`;if(p>=100){clearInterval(timer);playing=false;$('playBtn').textContent='▶';$('status').textContent='انتهت المعاينة — اضغط تحويل إلى فيديو للتصدير الكامل';}},80)}
+function stopMotion(){playing=false;clearInterval(timer);if(previewRafId)cancelAnimationFrame(previewRafId);$('playBtn').textContent='▶';$('photo').classList.remove('motion-play','motion-zoom','motion-zoomout','motion-pan','motion-tilt','motion-orbit','char-breathe','char-walk','char-talk','char-action');$('scrub').value=0;$('trackProgress').style.width='0%';drawRigOverlay(0);$('status').textContent=imageUrl?'الصورة معروضة بالكامل — اضغط على أجزاء الشخصية لإضافة حركة':'جاهز لاستقبال الصورة'}
+function play(){if(!imageUrl)return toast('ارفع صورة أولاً');switchToImageView();syncRigOverlaySize();const cam=$('camera').value;const subMode=$('subjectMotion')?.value||'auto';const effects=parsePromptEffects($('prompt').value,subMode);const camCls={zoom:'motion-zoom',zoomout:'motion-zoomout',pan:'motion-pan',tilt:'motion-tilt',orbit:'motion-orbit'}[cam];const charCls={breathe:'char-breathe',walk:'char-walk',talk:'char-talk',action:'char-action'}[effects.personMode];$('photo').classList.remove('motion-zoom','motion-zoomout','motion-pan','motion-tilt','motion-orbit','char-breathe','char-walk','char-talk','char-action');if(rigPins.length===0){if(camCls)$('photo').classList.add(camCls);else if(charCls)$('photo').classList.add(charCls);}$('photo').style.setProperty('--dur',$('duration').value+'s');const dur=Number($('duration').value);playing=true;$('playBtn').textContent='❚❚';$('status').textContent=rigPins.length?'معاينة حركة أجزاء الشخصية المحددة تعمل':'معاينة حركة المشهد تعمل';let start=Date.now();clearInterval(timer);function animLoop(){if(!playing)return;const elapsed=(Date.now()-start)/(dur*1000);const rawT=Math.min(1,elapsed);drawRigOverlay(rawT);if(rawT<1)previewRafId=requestAnimationFrame(animLoop);}if(rigPins.length>0)previewRafId=requestAnimationFrame(animLoop);timer=setInterval(()=>{let p=Math.min(100,(Date.now()-start)/(dur*1000)*100);$('scrub').value=p;$('trackProgress').style.width=p+'%';$('timeLabel').textContent=`00:${String(Math.floor(p/100*dur)).padStart(2,'0')} / 00:${String(dur).padStart(2,'0')}`;if(p>=100){clearInterval(timer);playing=false;$('playBtn').textContent='▶';drawRigOverlay(0);$('status').textContent='انتهت المعاينة — اضغط تحويل إلى فيديو للتصدير الكامل';}},80)}
 
 $('generateVideoBtn')?.addEventListener('click',()=>triggerVideoConversion());
 $('previewMotion').onclick=()=>{if(!imageUrl)return toast('ارفع صورة أولاً');play()};
@@ -1094,7 +1294,7 @@ $('queueVideoBtn')?.addEventListener('click',()=>{
   });
   saveDailyState();
   renderQuotaAndBatch();
-  toast('تمت إضافة المشهد إلى قائمة الانتظار');
+  toast('تمت إضافة الفيديو إلى قائمة 100 فيديو اليوم');
 });
 
 $('fillFromCommandsBtn')?.addEventListener('click',()=>{
@@ -1200,7 +1400,7 @@ $('exportBatchBtn')?.addEventListener('click',()=>{
   a.download=`daily-100-videos-${dailyState.date}.json`;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  toast('تم تصدير سجل الإنتاج JSON');
+  toast('تم تصدير سجل 100 فيديو JSON');
 });
 
 $('lang').onclick=()=>toast('سيتم إضافة واجهة إنجليزية كاملة في إصدار لاحق');
@@ -1216,3 +1416,92 @@ updateApiUI();
 populateCategories();
 renderCommands();
 renderQuotaAndBatch();
+
+
+// Rig Studio UI & Overlay Canvas Pointer Events
+$('rigPartBtns')?.addEventListener('click',e=>{
+  const btn=e.target.closest('.rig-part-btn[data-part]');
+  if(!btn)return;
+  document.querySelectorAll('.rig-part-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedPart=btn.dataset.part;
+  if(btn.dataset.motion&&$('rigMotionType'))$('rigMotionType').value=btn.dataset.motion;
+  if(selectedPart==='mouth'&&$('rigRadius'))$('rigRadius').value='0.06';
+  else if((selectedPart==='leg_r'||selectedPart==='leg_l'||selectedPart==='chest')&&$('rigRadius'))$('rigRadius').value='0.17';
+  else if($('rigRadius'))$('rigRadius').value='0.11';
+});
+
+$('rigPinsList')?.addEventListener('click',e=>{
+  const delBtn=e.target.closest('button[data-del-pin]');
+  if(!delBtn)return;
+  rigPins=rigPins.filter(p=>p.id!==delBtn.dataset.delPin);
+  renderRigPinsList();
+  drawRigOverlay(0);
+});
+
+$('clearRigPinsBtn')?.addEventListener('click',()=>{
+  rigPins=[];
+  renderRigPinsList();
+  drawRigOverlay(0);
+  toast('تم مسح جميع نقاط التحريك');
+});
+
+$('toggleRigPinsBtn')?.addEventListener('click',()=>{
+  showRigPins=!showRigPins;
+  drawRigOverlay(0);
+  toast(showRigPins?'تم إظهار نقاط المفاصل':'تم إخفاء نقاط المفاصل');
+});
+
+$('autoRigPresetBtn')?.addEventListener('click',()=>{
+  if(!imageUrl)return toast('ارفع صورة أولاً لتوزيع النقاط عليها');
+  rigPins=[
+    {id:'auto-head',part:'head',motion:'nod',u:0.50,v:0.24,radius:0.11,phase:0},
+    {id:'auto-mouth',part:'mouth',motion:'talk',u:0.50,v:0.31,radius:0.06,phase:0},
+    {id:'auto-hand-r',part:'hand_r',motion:'wave',u:0.33,v:0.52,radius:0.11,phase:0},
+    {id:'auto-hand-l',part:'hand_l',motion:'wave',u:0.67,v:0.52,radius:0.11,phase:Math.PI},
+    {id:'auto-leg-r',part:'leg_r',motion:'step',u:0.43,v:0.78,radius:0.15,phase:0},
+    {id:'auto-leg-l',part:'leg_l',motion:'step',u:0.57,v:0.78,radius:0.15,phase:Math.PI}
+  ];
+  renderRigPinsList();
+  syncRigOverlaySize();
+  toast('تم توزيع 6 نقاط تحريك (رأس، فم، يدين، رجلين) — اسحب أي نقطة لضبط مكانها بدقة!');
+});
+
+$('rigOverlay')?.addEventListener('pointerdown',e=>{
+  if(!imageUrl)return;
+  const rect=$('rigOverlay').getBoundingClientRect();
+  const u=(e.clientX-rect.left)/rect.width;
+  const v=(e.clientY-rect.top)/rect.height;
+
+  // Check if user tapped near an existing pin to drag/reposition it
+  const hit=rigPins.find(p=>Math.hypot(p.u-u,p.v-v)<0.045);
+  if(hit){
+    draggingPinId=hit.id;
+    $('rigOverlay').setPointerCapture(e.pointerId);
+    return;
+  }
+  addRigPin(u,v);
+});
+
+$('rigOverlay')?.addEventListener('pointermove',e=>{
+  if(!draggingPinId)return;
+  const rect=$('rigOverlay').getBoundingClientRect();
+  const pin=rigPins.find(p=>p.id===draggingPinId);
+  if(!pin)return;
+  pin.u=Math.max(0.04,Math.min(0.96,(e.clientX-rect.left)/rect.width));
+  pin.v=Math.max(0.04,Math.min(0.96,(e.clientY-rect.top)/rect.height));
+  renderRigPinsList();
+  drawRigOverlay(0);
+});
+
+$('rigOverlay')?.addEventListener('pointerup',e=>{
+  if(draggingPinId){
+    draggingPinId=null;
+    try{$('rigOverlay').releasePointerCapture(e.pointerId);}catch(_){}
+  }
+});
+
+$('photo')?.addEventListener('load',()=>{
+  setTimeout(syncRigOverlaySize,60);
+});
+window.addEventListener('resize',syncRigOverlaySize);
