@@ -27,7 +27,8 @@ async function falFetch(url, options = {}) {
 }
 module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-  if (!process.env.FAL_KEY || !process.env.MOTION_API_ACCESS_CODE) return send(res, 503, { error: "أضف FAL_KEY و MOTION_API_ACCESS_CODE في Vercel Environment Variables." });\n  if (req.headers["x-motion-access"] !== process.env.MOTION_API_ACCESS_CODE) return send(res, 401, { error: "رمز الوصول غير صحيح." });
+  if (!process.env.FAL_KEY || !process.env.MOTION_API_ACCESS_CODE) return send(res, 503, { error: "أضف FAL_KEY و MOTION_API_ACCESS_CODE في Vercel Environment Variables." });
+  if (req.headers["x-motion-access"] !== process.env.MOTION_API_ACCESS_CODE) return send(res, 401, { error: "رمز الوصول غير صحيح." });
   try {
     if (req.method === "POST") {
       const body = req.body || {};
