@@ -179,7 +179,7 @@ function loadApiConfig(){
     if(cfg.provider==='fal'){cfg.provider='fal-proxy';cfg.endpoint='kling/v4/image-to-video';cfg.apiKey='';}
     return cfg;
   }catch(_){
-    return {provider:'local',endpoint:'',apiKey:'',proxy:''};
+    return {provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
   }
 }
 
@@ -202,8 +202,6 @@ function updateApiUI(){
   if($('apiAccessCode'))$('apiAccessCode').disabled=apiConfig.provider!=='fal-proxy';
   if($('apiProxy'))$('apiProxy').disabled=apiConfig.provider==='fal-proxy';
   if($('apiKey'))$('apiKey').value=apiConfig.apiKey||'';
-  if($('apiAccessCode'))$('apiAccessCode').value=apiConfig.accessCode||'';
-  if($('apiAccessCode'))$('apiAccessCode').disabled=apiConfig.provider!=='fal-proxy';
   if($('apiProxy'))$('apiProxy').value=apiConfig.proxy||'';
 
   const active=isExternalApiActive();
@@ -1030,7 +1028,7 @@ $('testApiBtn')?.addEventListener('click',()=>{
   const apiKey=($('apiKey')?.value||'').trim();
   const proxy=($('apiProxy')?.value||'').trim();
   if(provider==='local')return toast('أنت حالياً على الوضع المجاني المحلي.');
-  if(provider==='fal-proxy')return toast('سيتم فحص FAL_KEY عند بدء أول طلب. أضفه في إعدادات Vercel لحماية المفتاح.');
+  if(provider==='fal-proxy')return toast('أضف FAL_KEY و MOTION_API_ACCESS_CODE في Vercel، ثم احفظ رمز الوصول هنا.');
   if(!apiKey&&!proxy)return toast('يرجى إدخال مفتاح API أو رابط Proxy للاختبار');
   toast(`الإعدادات جاهزة لـ (${provider}) — ارفع صورة واضغط تحويل إلى فيديو للتجربة`);
 });
