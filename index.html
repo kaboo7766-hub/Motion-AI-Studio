@@ -85,7 +85,7 @@
 
 <section class="panel api-panel" id="apiSection">
 <div class="panel-head">
-<div><h2>إعدادات ربط المحرك الخارجي (Image-to-Video AI)</h2><small>اربط المنصة مع fal.ai أو Replicate لتحريك الأشخاص والملامح بالذكاء الاصطناعي الحقيقي</small></div>
+<div><h2>إعدادات المحرك الهجين (مجاني + AI احترافي)</h2><small>المحرك المجاني يعمل محلياً، والمحرك الاحترافي يستخدم Kling عبر fal.ai</small></div>
 <span class="lib-badge" id="apiStatusBadge">غير متصل (يعمل محلياً)</span>
 </div>
 <div class="api-grid">
@@ -93,21 +93,22 @@
 <label class="label">مزود الخدمة (Provider)</label>
 <select id="apiProvider">
 <option value="local">محرك المتصفح المحلي (بدون API)</option>
-<option value="fal">fal.ai (Kling / Minimax / Luma)</option>
+<option value="fal-proxy">AI احترافي عبر fal.ai (Kling 4.0 / Kling 3.0)</option>
 <option value="replicate">Replicate API (Predictions)</option>
 <option value="custom">خادم مخصص / Webhook (POST JSON)</option>
 </select>
 </div>
 <div>
-<label class="label">اسم الموديل / رابط Endpoint</label>
-<input type="text" class="lib-search" id="apiEndpoint" placeholder="مثال: fal-ai/kling-video/v1.6/standard/image-to-video">
+<label class="label">موديل الذكاء الاصطناعي الاحترافي</label>
+<select id="apiEndpoint"><option value="kling/v4/image-to-video">Kling 4.0 — جودة عالية</option><option value="fal-ai/kling-video/v3/pro/image-to-video">Kling 3.0 Pro — سينمائي</option></select>
 </div>
 <div>
-<label class="label">مفتاح API (API Key / Token)</label>
-<input type="password" class="lib-search" id="apiKey" placeholder="أدخل مفتاح API الخاص بك...">
+<label class="label">مفتاح API</label>
+<input type="password" class="lib-search" id="apiKey" placeholder="للمزودات القديمة فقط — لا تضع FAL_KEY هنا">
+<small>في وضع fal.ai الآمن ضع FAL_KEY في Vercel Environment Variables فقط، ولا تضعه في المتصفح.</small>
 </div>
 <div>
-<label class="label">رابط Proxy اختياري (لتجاوز CORS في المتصفح)</label>
+<label class="label">رابط Proxy اختياري للمزودات المخصصة</label>
 <input type="text" class="lib-search" id="apiProxy" placeholder="اختياري: /api/video">
 </div>
 </div>
@@ -117,7 +118,7 @@
 <button class="outline small" id="clearApiBtn">إلغاء الربط والعودة للمحلي</button>
 </div>
 <div class="notice" style="margin-top:10px">
-ملاحظة: محرك المتصفح المحلي يحرّك الأشخاص عبر تشويه شبكي مرن (Mesh/Wave Motion) للرأس والجسم والملابس، بينما المحرك الخارجي (مثل Kling عبر fal.ai) يولّد حركة بشرية ثلاثية الأبعاد كاملة (مشي، كلام، تعبيرات وجه ويدين).
+الوضع المجاني المحلي يصنع حركة بصرية بسيطة داخل المتصفح، وليس تحريكاً بشرياً حقيقياً. وضع AI الاحترافي يرسل الصورة إلى Kling عبر خادم Vercel آمن؛ وقد تُخصم تكلفة حسب نموذج الفيديو ومدته. لا تضع مفتاح FAL_KEY في المتصفح.
 </div>
 </section>
 
