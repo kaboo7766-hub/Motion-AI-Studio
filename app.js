@@ -341,6 +341,11 @@ async function analyzeCharacterPose(){
   finally{if(btn){btn.disabled=false;btn.textContent='◎ إعادة تحليل المفاصل';}}
 }
 $('analyzePoseBtn')?.addEventListener('click',analyzeCharacterPose);
+document.querySelectorAll('input[name="rigMode"]').forEach(el=>el.addEventListener('change',()=>{
+  const status=$('poseStatus');
+  if(status)status.textContent=el.value==='real'?'وضع الصور الحقيقية: يفضّل ظهور الجسم كاملاً وإضاءة واضحة':'وضع الكرتون و3D: جرّب صورة الشخصية بخلفية بسيطة أو شفافة';
+}));
+
 
 async function renderRealVideoLocal(opts){
   if(!loadedImgEl)throw new Error('NO_IMAGE');
@@ -367,7 +372,8 @@ async function renderRealVideoLocal(opts){
 
   const subject=detectSubjectCenter(srcCanvas,W,H);
   const rigAction=opts.rigAction||$('rigAction')?.value||'idle';
-  const rigStrength=Number($('rigStrength')?.value||1);
+  const rigMode=document.querySelector('input[name="rigMode"]:checked')?.value||'cartoon';
+  const rigStrength=Number($('rigStrength')?.value||1)*(rigMode==='real'?0.82:1.12);
   const joints=poseLandmarks?.map(p=>({x:p.x*W,y:p.y*H,visibility:p.visibility??1}))||null;
 
   const canvas=document.createElement('canvas');
