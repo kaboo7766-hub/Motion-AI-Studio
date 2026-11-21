@@ -796,7 +796,7 @@ $('duration').onchange=()=>{$('durationTick').textContent='0:'+String($('duratio
 $('addKey').onclick=()=>{const p=Number(prompt('أدخل موضع نقطة الحركة من 0 إلى 100 (نسبة من مدة المشهد):'));if(Number.isNaN(p)||p<0||p>100)return toast('النسبة يجب أن تكون من 0 إلى 100');keys.push(p);renderKeys();toast('تمت إضافة نقطة حركة')};
 function renderKeys(){const line=$('trackline');line.querySelectorAll('.key').forEach(k=>{if(!['0','50','100'].includes(k.dataset.key))k.remove()});keys.forEach((p,i)=>{if(i<3)return;const b=document.createElement('button');b.className='key';b.style.left=p+'%';b.dataset.key=p;b.title='نقطة حركة '+p+'%';b.onclick=()=>{if(confirm('حذف نقطة الحركة '+p+'٪؟')){keys.splice(i,1);renderKeys()}};line.append(b)})}
 
-function projectData(){return {app:'Motion AI Studio',version:6,createdAt:new Date().toISOString(),apiProvider:'local',dailyLimit:DAILY_LIMIT,dailyProducedCount:dailyState.producedCount,imageName:$('file').files[0]?.name||null,prompt:$('prompt').value,durationSeconds:Number($('duration').value),camera:$('camera').value,subjectMotion:$('subjectMotion')?.value,intensity:$('intensity').value,keyframes:keys,selectedCommandId}}
+function projectData(){return {app:'Motion AI Studio',version:6,createdAt:new Date().toISOString(),apiProvider:'local',dailyLimit:'unlimited',dailyProducedCount:dailyState.producedCount,imageName:$('file').files[0]?.name||null,prompt:$('prompt').value,durationSeconds:Number($('duration').value),camera:$('camera').value,subjectMotion:$('subjectMotion')?.value,intensity:$('intensity').value,keyframes:keys,selectedCommandId}}
 $('saveProject').onclick=()=>{const data=projectData();const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='motion-project.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('تم تنزيل ملف إعدادات المشروع')};
 
 $('commandsList')?.addEventListener('click',e=>{const card=e.target.closest('.cmd-item[data-cmd-id]');if(!card)return;applyCommandById(card.dataset.cmdId);});
@@ -816,7 +816,7 @@ $('batchList')?.addEventListener('click',e=>{
 
 $('queueVideoBtn')?.addEventListener('click',()=>{
   const usedSlots=dailyState.producedCount+dailyState.queue.filter(i=>i.status!=='done').length;
-  if(usedSlots>=DAILY_LIMIT)return toast('تم بلوغ حد 100 فيديو لليوم');
+  if(usedSlots>=DAILY_LIMIT)return toast('لا يمكن إضافة مشهد جديد حالياً');
   const activeCmd=COMMANDS_100.find(c=>c.id===selectedCommandId);
   dailyState.queue.push({
     id:'vid-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
@@ -836,7 +836,7 @@ $('queueVideoBtn')?.addEventListener('click',()=>{
 $('fillFromCommandsBtn')?.addEventListener('click',()=>{
   const usedSlots=dailyState.producedCount+dailyState.queue.filter(i=>i.status!=='done').length;
   const availableSlots=DAILY_LIMIT-usedSlots;
-  if(availableSlots<=0)return toast('لا توجد خانات متبقية ضمن حد 100 فيديو لليوم');
+  if(availableSlots<=0)return toast('لا توجد مساحة متاحة لإضافة مشاهد جديدة');
 
   const q=($('cmdSearch')?.value||'').trim().toLowerCase();
   const cat=$('cmdCategory')?.value||'all';
@@ -892,7 +892,7 @@ $('runBatchBtn')?.addEventListener('click',()=>{
 });
 
 $('resetQuotaBtn')?.addEventListener('click',()=>{
-  if(!confirm('هل تريد تصفير عدّاد وقائمة الـ 100 فيديو لليوم؟'))return;
+  if(!confirm('هل تريد مسح سجل الإنتاج وقائمة المشاهد؟'))return;
   dailyState={date:new Date().toISOString().slice(0,10),producedCount:0,queue:[]};
   saveDailyState();
   renderQuotaAndBatch();
@@ -904,7 +904,7 @@ $('exportBatchBtn')?.addEventListener('click',()=>{
     date:dailyState.date,
     dailyLimit:DAILY_LIMIT,
     producedCount:dailyState.producedCount,
-    remaining:Math.max(0,DAILY_LIMIT-dailyState.producedCount),
+    remaining:'unlimited',
     items:dailyState.queue
   };
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
