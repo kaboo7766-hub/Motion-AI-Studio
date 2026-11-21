@@ -171,29 +171,7 @@ const DEFAULT_ENDPOINTS={
   custom:'https://your-server.example.com/api/image-to-video'
 };
 
-function loadApiConfig(){
-  try{
-    const raw=localStorage.getItem(API_CONFIG_KEY);
-    if(!raw)return {provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
-    const cfg=Object.assign({provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p'},JSON.parse(raw));
-    if(cfg.provider==='fal'){cfg.provider='fal-proxy';cfg.endpoint='kling/v4/image-to-video';cfg.apiKey='';}
-    return cfg;
-  }catch(_){
-    return {provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
-  }
-}
-
-let apiConfig={provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
-
-function saveApiConfig(){
-  try{localStorage.setItem(API_CONFIG_KEY,JSON.stringify(apiConfig));}catch(_){}
-  updateApiUI();
-}
-
-function isExternalApiActive(){
-  return apiConfig.provider==='fal-proxy'||(apiConfig.provider!=='local'&&(Boolean(apiConfig.apiKey)||Boolean(apiConfig.proxy)));
-}
-
+const apiConfig={provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
 function updateApiUI(){
   if($('renderBadge'))$('renderBadge').textContent='FREE LOCAL ENGINE';
   if($('engineModePill'))$('engineModePill').textContent='✦ محرك مجاني محلي';
@@ -638,10 +616,7 @@ async function triggerVideoConversion(customOpts){
     if(customOpts?.id){
       const queuedItem=dailyState.queue.find(item=>item.id===customOpts.id);
       if(queuedItem)queuedItem.status='done';
-  }
-
-    if(!customOpts?.id&&dailyState.producedCount<DAILY_LIMIT){
-      dailyState.producedCount++;
+    }else{
       dailyState.queue.push({
         id:'vid-'+Date.now(),
         commandId:activeCmd?activeCmd.id:null,
@@ -652,9 +627,10 @@ async function triggerVideoConversion(customOpts){
         intensity:reqOpts.intensity,
         status:'done'
       });
-      saveDailyState();
-      renderQuotaAndBatch();
     }
+    dailyState.producedCount++;
+    saveDailyState();
+    renderQuotaAndBatch();
 
     toast('تم إنشاء الفيديو محلياً مجاناً. يمكنك معاينته أو تنزيله بشكل مستقل.');
   }catch(err){
@@ -801,42 +777,6 @@ $('chooseBtn').onclick=()=> $('file').click();
 $('backToImageBtn')?.addEventListener('click',switchToImageView);
 $('localEngineInfoBtn')?.addEventListener('click',()=>toast('المحرك مجاني ويعمل داخل المتصفح؛ لا توجد خدمات مدفوعة متصلة.'));
 
-$('apiProvider')?.addEventListener('change',e=>{
-  const p=e.target.value;
-  if($('apiEndpoint'))$('apiEndpoint').value=DEFAULT_ENDPOINTS[p]||'';
-});
-
-$('saveApiBtn')?.addEventListener('click',()=>{
-  const provider=$('apiProvider')?.value||'local';
-  const endpoint=($('apiEndpoint')?.value||'').trim();
-  const apiKey=($('apiKey')?.value||'').trim();
-  const proxy=($('apiProxy')?.value||'').trim();
-  const accessCode=($('apiAccessCode')?.value||'').trim();
-
-  if(provider!=='local'&&provider!=='fal-proxy'&&!apiKey&&!proxy){
-    return toast('أدخل مفتاح API أو رابط Proxy أولاً لتفعيل الربط الخارجي');
-  }
-  apiConfig={provider,endpoint,apiKey:provider==='fal-proxy'?'':apiKey,proxy:provider==='fal-proxy'?'':proxy,resolution:'1080p',accessCode:provider==='fal-proxy'?accessCode:''};
-  saveApiConfig();
-  toast('تم حفظ إعدادات المحرك الخارجي وتفعيلها!');
-});
-
-$('testApiBtn')?.addEventListener('click',()=>{
-  const provider=$('apiProvider')?.value||'local';
-  const apiKey=($('apiKey')?.value||'').trim();
-  const proxy=($('apiProxy')?.value||'').trim();
-  if(provider==='local')return toast('أنت حالياً على الوضع المجاني المحلي.');
-  if(provider==='fal-proxy')return toast('أضف FAL_KEY و MOTION_API_ACCESS_CODE في Vercel، ثم احفظ رمز الوصول هنا.');
-  if(!apiKey&&!proxy)return toast('يرجى إدخال مفتاح API أو رابط Proxy للاختبار');
-  toast(`الإعدادات جاهزة لـ (${provider}) — ارفع صورة واضغط تحويل إلى فيديو للتجربة`);
-});
-
-$('clearApiBtn')?.addEventListener('click',()=>{
-  apiConfig={provider:'local',endpoint:'',apiKey:'',proxy:''};
-  saveApiConfig();
-  toast('تم إلغاء الربط الخارجي والعودة للمحرك المحلي');
-});
-
 $('drop').addEventListener('dragover',e=>{e.preventDefault();$('drop').style.borderColor='#a98bff'});
 $('drop').addEventListener('dragleave',()=> $('drop').style.borderColor='');
 $('drop').addEventListener('drop',e=>{e.preventDefault();$('drop').style.borderColor='';setImage(e.dataTransfer.files[0])});
@@ -856,7 +796,7 @@ $('duration').onchange=()=>{$('durationTick').textContent='0:'+String($('duratio
 $('addKey').onclick=()=>{const p=Number(prompt('أدخل موضع نقطة الحركة من 0 إلى 100 (نسبة من مدة المشهد):'));if(Number.isNaN(p)||p<0||p>100)return toast('النسبة يجب أن تكون من 0 إلى 100');keys.push(p);renderKeys();toast('تمت إضافة نقطة حركة')};
 function renderKeys(){const line=$('trackline');line.querySelectorAll('.key').forEach(k=>{if(!['0','50','100'].includes(k.dataset.key))k.remove()});keys.forEach((p,i)=>{if(i<3)return;const b=document.createElement('button');b.className='key';b.style.left=p+'%';b.dataset.key=p;b.title='نقطة حركة '+p+'%';b.onclick=()=>{if(confirm('حذف نقطة الحركة '+p+'٪؟')){keys.splice(i,1);renderKeys()}};line.append(b)})}
 
-function projectData(){return {app:'Motion AI Studio',version:5,createdAt:new Date().toISOString(),apiProvider:apiConfig.provider,dailyLimit:DAILY_LIMIT,dailyProducedCount:dailyState.producedCount,imageName:$('file').files[0]?.name||null,prompt:$('prompt').value,durationSeconds:Number($('duration').value),camera:$('camera').value,subjectMotion:$('subjectMotion')?.value,intensity:$('intensity').value,keyframes:keys,selectedCommandId}}
+function projectData(){return {app:'Motion AI Studio',version:6,createdAt:new Date().toISOString(),apiProvider:'local',dailyLimit:DAILY_LIMIT,dailyProducedCount:dailyState.producedCount,imageName:$('file').files[0]?.name||null,prompt:$('prompt').value,durationSeconds:Number($('duration').value),camera:$('camera').value,subjectMotion:$('subjectMotion')?.value,intensity:$('intensity').value,keyframes:keys,selectedCommandId}}
 $('saveProject').onclick=()=>{const data=projectData();const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='motion-project.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('تم تنزيل ملف إعدادات المشروع')};
 
 $('commandsList')?.addEventListener('click',e=>{const card=e.target.closest('.cmd-item[data-cmd-id]');if(!card)return;applyCommandById(card.dataset.cmdId);});
@@ -981,7 +921,7 @@ document.querySelectorAll('.sidebar nav button').forEach(b=>b.onclick=()=>{
   if(b.dataset.page==='editor')window.scrollTo({top:0,behavior:'smooth'});
   else if(b.dataset.page==='projects'){$('batchSection')?.scrollIntoView({behavior:'smooth'});toast('سجل المشاريع والدفعات متاح في الأسفل')}
   else if(b.dataset.page==='presets'){$('motionLibrary')?.scrollIntoView({behavior:'smooth'});toast('قائمة الـ 100 أمر حركة متاحة هنا')}
-  else if(b.dataset.page==='settings'){$('apiSection')?.scrollIntoView({behavior:'smooth'});toast('إعدادات ربط المحرك الخارجي متاحة هنا')}
+  else if(b.dataset.page==='settings'){$('apiSection')?.scrollIntoView({behavior:'smooth'});toast('المحرك المجاني المحلي يعمل دون API')}
 });
 document.querySelectorAll('.key').forEach(k=>k.addEventListener('click',()=>toast('نقطة الحركة عند '+k.dataset.key+'٪')));
 
