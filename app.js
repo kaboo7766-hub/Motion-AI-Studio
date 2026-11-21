@@ -1,10 +1,11 @@
 const $=id=>document.getElementById(id);
 const DAILY_LIMIT=Number.MAX_SAFE_INTEGER;
 const STORAGE_KEY='motion_ai_daily_100_v3';
-const API_CONFIG_KEY='motion_ai_external_api_v1';
+// Free-only build: no external AI provider or paid API is used.
 
 let imageUrl=null,loadedImgEl=null,imageDataUrl=null,playing=false,timer=null,keys=[0,50,100],selectedCommandId=null;
 let generatedVideoUrl=null,isRendering=false;
+let poseLandmarks=null,poseLandmarker=null,poseLoadPromise=null;
 
 const CATEGORIES=[
   'الحركة السينمائية',
@@ -171,52 +172,12 @@ const DEFAULT_ENDPOINTS={
   custom:'https://your-server.example.com/api/image-to-video'
 };
 
-function loadApiConfig(){
-  try{
-    const raw=localStorage.getItem(API_CONFIG_KEY);
-    if(!raw)return {provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
-    const cfg=Object.assign({provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p'},JSON.parse(raw));
-    if(cfg.provider==='fal'){cfg.provider='fal-proxy';cfg.endpoint='kling/v4/image-to-video';cfg.apiKey='';}
-    return cfg;
-  }catch(_){
-    return {provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
-  }
-}
-
-let apiConfig=loadApiConfig();
-
-function saveApiConfig(){
-  try{localStorage.setItem(API_CONFIG_KEY,JSON.stringify(apiConfig));}catch(_){}
-  updateApiUI();
-}
-
-function isExternalApiActive(){
-  return apiConfig.provider==='fal-proxy'||(apiConfig.provider!=='local'&&(Boolean(apiConfig.apiKey)||Boolean(apiConfig.proxy)));
-}
-
+const apiConfig={provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
 function updateApiUI(){
-  if($('apiProvider'))$('apiProvider').value=apiConfig.provider||'local';
-  if($('apiEndpoint'))$('apiEndpoint').value=apiConfig.endpoint||DEFAULT_ENDPOINTS[apiConfig.provider]||'';
-  if($('apiKey'))$('apiKey').disabled=apiConfig.provider==='fal-proxy';
-  if($('apiAccessCode'))$('apiAccessCode').value=apiConfig.accessCode||'';
-  if($('apiAccessCode'))$('apiAccessCode').disabled=apiConfig.provider!=='fal-proxy';
-  if($('apiProxy'))$('apiProxy').disabled=apiConfig.provider==='fal-proxy';
-  if($('apiKey'))$('apiKey').value=apiConfig.apiKey||'';
-  if($('apiProxy'))$('apiProxy').value=apiConfig.proxy||'';
-
-  const active=isExternalApiActive();
-  const names={local:'محلي مجاني','fal-proxy':'Kling AI احترافي',fal:'fal.ai',replicate:'Replicate',custom:'خادم مخصص'};
-  const pName=names[apiConfig.provider]||'محلي';
-
-  if($('apiStatusBadge'))$('apiStatusBadge').textContent=apiConfig.provider==='fal-proxy'?'تم اختيار AI — يلزم إعداد FAL_KEY و Access Code في Vercel':active?`متصل: ${pName}`:'الوضع المجاني المحلي';
-  if($('renderBadge'))$('renderBadge').textContent=active?`API · ${apiConfig.provider.toUpperCase()}`:'LOCAL ENGINE';
-  if($('engineModePill'))$('engineModePill').textContent=active?`✦ ${pName} API`:'✦ LOCAL AI';
-  if($('engineNotice')){
-    $('engineNotice').textContent=apiConfig.provider==='fal-proxy'
-      ?'وضع AI الاحترافي محدد. أضف FAL_KEY و MOTION_API_ACCESS_CODE في Vercel، ثم أدخل رمز الوصول هنا. قد تُخصم تكلفة لكل عملية توليد.'
-      :active?`متصل حالياً بمحرك (${pName}). سيتم إرسال الصورة إلى مزود AI لتوليد الفيديو.`
-      :'الوضع المجاني المحلي يصنع حركة بصرية بسيطة، وليس تحريكاً بشرياً حقيقياً.';
-  }
+  if($('renderBadge'))$('renderBadge').textContent='FREE LOCAL ENGINE';
+  if($('engineModePill'))$('engineModePill').textContent='✦ محرك مجاني محلي';
+  if($('apiStatusBadge'))$('apiStatusBadge').textContent='يعمل محلياً — بدون API';
+  if($('engineNotice'))$('engineNotice').textContent='تتم معالجة الصورة داخل المتصفح دون إرسالها لأي خدمة خارجية أو استخدام رصيد مدفوع.';
 }
 
 function loadDailyState(){
@@ -286,191 +247,6 @@ function getOptimizedImageDataUrl(){
   return c.toDataURL('image/jpeg',0.9);
 }
 
-async function generateViaFalProxy(opts){
-  const imgData=getOptimizedImageDataUrl();
-  if(!imgData)throw new Error('لا توجد صورة جاهزة للإرسال');
-  const model=apiConfig.endpoint||'kling/v4/image-to-video';
-  if(typeof opts.onProgress==='function')opts.onProgress(8,'جاري إرسال الصورة بأمان إلى محرك Kling...');
-  const submitRes=await fetch('/api/motion',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-motion-access':apiConfig.accessCode||''},
-    body:JSON.stringify({
-      action:'submit',
-      model,
-      imageDataUrl:imgData,
-      prompt:opts.prompt||'Natural realistic full-body human movement, preserve the character identity and clothing.',
-      duration:Math.max(3,Math.min(30,Number(opts.duration)||5)),
-      resolution:'1080p'
-    })
-  });
-  const submitData=await submitRes.json().catch(()=>({}));
-  if(!submitRes.ok)throw new Error(submitData.error||'تعذر بدء طلب AI الاحترافي');
-  if(!submitData.request_id)throw new Error('لم يرجع مزود AI رقم الطلب');
-  for(let attempt=1;attempt<=180;attempt++){
-    await new Promise(resolve=>setTimeout(resolve,4000));
-    const statusRes=await fetch('/api/motion?action=status&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id),{headers:{'x-motion-access':apiConfig.accessCode||''}});
-    const statusData=await statusRes.json().catch(()=>({}));
-    if(!statusRes.ok)throw new Error(statusData.error||'تعذر متابعة طلب AI');
-    const state=String(statusData.status||'').toUpperCase();
-    if(typeof opts.onProgress==='function')opts.onProgress(Math.min(94,12+Math.round(attempt/180*82)),state==='IN_QUEUE'?'طلبك في قائمة انتظار Kling...':'جاري إنشاء حركة الشخصية بالذكاء الاصطناعي...');
-    if(state==='FAILED'||state==='CANCELLED')throw new Error(statusData.error||'فشل توليد الفيديو من مزود AI');
-    if(state==='COMPLETED'){
-      const resultRes=await fetch('/api/motion?action=result&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id),{headers:{'x-motion-access':apiConfig.accessCode||''}});
-      const resultData=await resultRes.json().catch(()=>({}));
-      if(!resultRes.ok)throw new Error(resultData.error||'تعذر استلام الفيديو النهائي');
-      const videoUrl=resultData.video?.url||resultData.data?.video?.url;
-      if(!videoUrl)throw new Error('اكتمل الطلب لكن رابط الفيديو غير موجود');
-      if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل توليد الفيديو البشري الاحترافي!');
-      return {url:videoUrl,ext:'mp4',duration:Number(opts.duration)||5,source:'Kling AI via fal.ai'};
-    }
-  }
-  throw new Error('انتهت مهلة انتظار محرك AI؛ يمكنك إعادة المحاولة لاحقاً');
-}
-
-async function generateViaExternalApi(opts){
-  const imgData=getOptimizedImageDataUrl();
-  if(!imgData)throw new Error('لا توجد صورة محملة لإرسالها للمحرك الخارجي');
-
-  const promptFull=`Full frame shot, realistic human body and facial motion, natural people movement: ${opts.prompt||'People moving naturally, subtle breathing, head turn and natural body motion'}, camera motion: ${opts.camera}, intensity: ${opts.intensity}`;
-  const durationStr=String(Number(opts.duration)<=5?5:10);
-
-  if(typeof opts.onProgress==='function')opts.onProgress(15,'جاري إرسال الصورة الكاملة وأمر تحريك الأشخاص إلى المحرك الخارجي...');
-
-  if(apiConfig.proxy){
-    const res=await fetch(apiConfig.proxy,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        ...(apiConfig.apiKey?{'Authorization':`Bearer ${apiConfig.apiKey}`}:{})
-      },
-      body:JSON.stringify({
-        provider:apiConfig.provider,
-        endpoint:apiConfig.endpoint,
-        image_url:imgData,
-        prompt:promptFull,
-        duration:Number(opts.duration)||5,
-        camera:opts.camera,
-        intensity:opts.intensity
-      })
-    });
-    if(!res.ok)throw new Error(`خطأ من الخادم الوسيط (${res.status})`);
-    const data=await res.json();
-    const videoUrl=data.video_url||data.video?.url||data.output?.[0]||data.output;
-    if(!videoUrl)throw new Error('لم يُرجع الخادم رابط فيديو صالح');
-    if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل توليد الفيديو من الخادم!');
-    return {url:videoUrl,ext:'mp4',duration:Number(opts.duration)||5,source:'External Proxy API'};
-  }
-
-  if(apiConfig.provider==='fal'){
-    let endpoint=(apiConfig.endpoint||DEFAULT_ENDPOINTS.fal).trim();
-    if(!endpoint.startsWith('http'))endpoint='https://queue.fal.run/'+endpoint.replace(/^\/+/,'');
-
-    const submitRes=await fetch(endpoint,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':`Key ${apiConfig.apiKey}`
-      },
-      body:JSON.stringify({
-        prompt:promptFull,
-        image_url:imgData,
-        duration:durationStr
-      })
-    });
-    if(!submitRes.ok){
-      const errTxt=await submitRes.text().catch(()=>'');
-      throw new Error(`فشل الاتصال بـ fal.ai (${submitRes.status}): ${errTxt.slice(0,120)}`);
-    }
-    const job=await submitRes.json();
-    if(job.video?.url){
-      return {url:job.video.url,ext:'mp4',duration:Number(durationStr),source:'fal.ai'};
-    }
-    const statusUrl=job.status_url;
-    const responseUrl=job.response_url;
-    if(!statusUrl||!responseUrl)throw new Error('استجابة غير متوقعة من fal.ai');
-
-    for(let attempt=1;attempt<=60;attempt++){
-      await new Promise(r=>setTimeout(r,3000));
-      const pct=Math.min(92,15+Math.round((attempt/60)*77));
-      if(typeof opts.onProgress==='function')opts.onProgress(pct,`جاري تحريك الأشخاص وتوليد الفيديو على fal.ai... (${attempt*3}ث)`);
-
-      const stRes=await fetch(statusUrl,{headers:{'Authorization':`Key ${apiConfig.apiKey}`}});
-      if(!stRes.ok)continue;
-      const st=await stRes.json();
-      if(st.status==='COMPLETED'){
-        const finalRes=await fetch(responseUrl,{headers:{'Authorization':`Key ${apiConfig.apiKey}`}});
-        const finalData=await finalRes.json();
-        const vUrl=finalData.video?.url||finalData.data?.video?.url;
-        if(!vUrl)throw new Error('اكتمل الطلب لكن لم يُعثر على رابط الفيديو');
-        if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل توليد الفيديو من fal.ai!');
-        return {url:vUrl,ext:'mp4',duration:Number(durationStr),source:'fal.ai'};
-      }
-      if(st.status==='FAILED')throw new Error('فشل توليد الفيديو على fal.ai');
-    }
-    throw new Error('انتهت مهلة الانتظار من fal.ai');
-  }
-
-  if(apiConfig.provider==='replicate'){
-    const endpoint=(apiConfig.endpoint||DEFAULT_ENDPOINTS.replicate).trim();
-    const createRes=await fetch(endpoint,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':`Bearer ${apiConfig.apiKey}`
-      },
-      body:JSON.stringify({
-        input:{
-          prompt:promptFull,
-          image:imgData,
-          first_frame_image:imgData
-        }
-      })
-    });
-    if(!createRes.ok)throw new Error(`فشل الاتصال بـ Replicate (${createRes.status})`);
-    const pred=await createRes.json();
-    const getUrl=pred.urls?.get;
-    if(!getUrl)throw new Error('لم يُرجع Replicate رابط متابعة الطلب');
-
-    for(let attempt=1;attempt<=60;attempt++){
-      await new Promise(r=>setTimeout(r,3000));
-      const pct=Math.min(92,15+Math.round((attempt/60)*77));
-      if(typeof opts.onProgress==='function')opts.onProgress(pct,`جاري التوليد على Replicate... (${attempt*3}ث)`);
-      const pollRes=await fetch(getUrl,{headers:{'Authorization':`Bearer ${apiConfig.apiKey}`}});
-      const pData=await pollRes.json();
-      if(pData.status==='succeeded'){
-        const out=Array.isArray(pData.output)?pData.output[0]:pData.output;
-        if(!out)throw new Error('لم يُرجع Replicate رابط فيديو');
-        if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل التوليد من Replicate!');
-        return {url:out,ext:'mp4',duration:Number(opts.duration)||5,source:'Replicate'};
-      }
-      if(pData.status==='failed'||pData.status==='canceled')throw new Error('فشل التوليد في Replicate');
-    }
-    throw new Error('انتهت مهلة الانتظار من Replicate');
-  }
-
-  const customUrl=(apiConfig.endpoint||'').trim();
-  if(!customUrl)throw new Error('يرجى إدخال رابط Endpoint صحيح');
-  const customRes=await fetch(customUrl,{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      ...(apiConfig.apiKey?{'Authorization':`Bearer ${apiConfig.apiKey}`}:{})
-    },
-    body:JSON.stringify({
-      image:imgData,
-      prompt:promptFull,
-      duration:Number(opts.duration)||5,
-      camera:opts.camera
-    })
-  });
-  if(!customRes.ok)throw new Error(`خطأ من الخادم المخصص (${customRes.status})`);
-  const cData=await customRes.json();
-  const cVideo=cData.video_url||cData.video?.url||cData.url||cData.output;
-  if(!cVideo)throw new Error('الاستجابة لا تحتوي على رابط فيديو');
-  if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل التوليد!');
-  return {url:cVideo,ext:'mp4',duration:Number(opts.duration)||5,source:'Custom API'};
-}
-
 // Artifact-Free Full-Frame Character & Scene Animator (Continuous 2D Mesh Grid Deformation)
 // Uses a 16x16 bilinear-interpolated mesh with smooth Gaussian weight falloff so there are ZERO horizontal slice tears, seams, or edge clipping.
 function detectSubjectCenter(srcCanvas,W,H){
@@ -538,9 +314,37 @@ function drawTexturedTriangle(ctx,img,x0,y0,x1,y1,x2,y2,u0,v0,u1,v1,u2,v2){
   ctx.restore();
 }
 
+
+async function ensurePoseLandmarker(){
+  if(poseLandmarker)return poseLandmarker;
+  if(poseLoadPromise)return poseLoadPromise;
+  poseLoadPromise=(async()=>{
+    const vision=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm');
+    const fileset=await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+    poseLandmarker=await vision.PoseLandmarker.createFromOptions(fileset,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'CPU'},runningMode:'IMAGE',numPoses:1,minPoseDetectionConfidence:0.35,minPosePresenceConfidence:0.35,minTrackingConfidence:0.35});
+    return poseLandmarker;
+  })();
+  try{return await poseLoadPromise;}catch(err){poseLoadPromise=null;throw err;}
+}
+async function analyzeCharacterPose(){
+  if(!loadedImgEl)return toast('ارفع صورة الشخصية أولاً');
+  const btn=$('analyzePoseBtn'),status=$('poseStatus');
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري تحليل المفاصل...';}
+  if(status)status.textContent='تحميل نموذج تحليل الجسم المجاني...';
+  try{
+    const detector=await ensurePoseLandmarker(),result=detector.detect(loadedImgEl);
+    poseLandmarks=result.landmarks?.[0]||null;
+    if(!poseLandmarks||poseLandmarks.length<33)throw new Error('لم يتم العثور على جسم واضح. استخدم صورة يظهر فيها الجسم بالكامل.');
+    if(status)status.textContent='✓ تم تحديد 33 نقطة للجسم — جاهز للتحريك';
+    toast('تم تحليل مفاصل الشخصية بنجاح');
+  }catch(err){poseLandmarks=null;if(status)status.textContent=err.message||'تعذر تحليل الصورة';toast(err.message||'تعذر تحميل نموذج التحليل');}
+  finally{if(btn){btn.disabled=false;btn.textContent='◎ إعادة تحليل المفاصل';}}
+}
+$('analyzePoseBtn')?.addEventListener('click',analyzeCharacterPose);
+
 async function renderRealVideoLocal(opts){
   if(!loadedImgEl)throw new Error('NO_IMAGE');
-  if(typeof MediaRecorder==='undefined')throw new Error('NO_RECORDER');
+  if(typeof MediaRecorder==='undefined')throw new Error('هذا المتصفح لا يدعم تصدير الفيديو. افتح البرنامج باستخدام أحدث إصدار من Chrome.');
 
   const durationSec=Math.max(2,Math.min(12,Number(opts.duration)||5));
   const camera=opts.camera||'zoom';
@@ -562,6 +366,9 @@ async function renderRealVideoLocal(opts){
   sCtx.drawImage(loadedImgEl,0,0,W,H);
 
   const subject=detectSubjectCenter(srcCanvas,W,H);
+  const rigAction=opts.rigAction||$('rigAction')?.value||'idle';
+  const rigStrength=Number($('rigStrength')?.value||1);
+  const joints=poseLandmarks?.map(p=>({x:p.x*W,y:p.y*H,visibility:p.visibility??1}))||null;
 
   const canvas=document.createElement('canvas');
   canvas.width=W;
@@ -584,8 +391,8 @@ async function renderRealVideoLocal(opts){
   recorder.ondataavailable=e=>{if(e.data&&e.data.size>0)chunks.push(e.data);};
 
   const totalFrames=Math.round(durationSec*fps);
-  const cols=16;
-  const rows=16;
+  const cols=32;
+  const rows=32;
 
   return new Promise((resolve,reject)=>{
     recorder.onerror=err=>reject(err);
@@ -692,6 +499,20 @@ async function renderRealVideoLocal(opts){
               offX+=Math.sin(rawT*Math.PI*2+v*2.5)*W*0.005*intensityMul*wLower;
             }
 
+            if(joints){
+              const gait=rawT*Math.PI*2*(rigAction==='run'?3.2:rigAction==='walk'?2.1:1.35),amp=rigStrength*intensityMul;
+              const jointMoves=[[0,Math.sin(gait+0.2)*0.010,Math.sin(gait)*0.008,0.075],[11,Math.sin(gait)*0.018,Math.cos(gait)*0.012,0.055],[12,-Math.sin(gait)*0.018,Math.cos(gait)*0.012,0.055],[13,Math.sin(gait+1)*0.030,Math.cos(gait+1)*0.020,0.040],[14,-Math.sin(gait+1)*0.030,Math.cos(gait+1)*0.020,0.040],[15,Math.sin(gait+1.5)*0.042,Math.cos(gait+1.5)*0.026,0.032],[16,-Math.sin(gait+1.5)*0.042,Math.cos(gait+1.5)*0.026,0.032],[23,Math.sin(gait+Math.PI)*0.020,Math.abs(Math.sin(gait))*0.014,0.060],[24,-Math.sin(gait+Math.PI)*0.020,Math.abs(Math.sin(gait))*0.014,0.060],[25,Math.sin(gait)*0.034,Math.cos(gait)*0.024,0.042],[26,-Math.sin(gait)*0.034,Math.cos(gait)*0.024,0.042],[27,Math.sin(gait)*0.042,Math.abs(Math.cos(gait))*0.028,0.034],[28,-Math.sin(gait)*0.042,Math.abs(Math.cos(gait))*0.028,0.034]];
+              for(const [idx,mx,my,radius] of jointMoves){
+                const joint=joints[idx];if(!joint||joint.visibility<0.25)continue;
+                let dx=mx,dy=my;
+                if(rigAction==='wave'&&(idx===13||idx===15)){dx+=0.025*Math.sin(rawT*Math.PI*4);dy-=0.035*Math.abs(Math.sin(rawT*Math.PI*4));}
+                if(rigAction==='punch'&&(idx===13||idx===15)){dx+=0.05*Math.sin(rawT*Math.PI*3);dy-=0.012*Math.abs(Math.sin(rawT*Math.PI*3));}
+                if(rigAction==='kick'&&(idx===25||idx===27)){dx+=0.055*Math.sin(rawT*Math.PI*2);dy-=0.045*Math.abs(Math.sin(rawT*Math.PI*2));}
+                if(rigAction==='dance'){dx*=1.5;dy+=0.018*Math.sin(gait*2);}
+                const du=u-joint.x/W,dv=v-joint.y/H,weight=Math.exp(-(du*du+dv*dv)/(radius*radius))*joint.visibility;
+                offX+=dx*W*amp*weight;offY+=dy*H*amp*weight;
+              }
+            }
             if(effects.breeze){
               const wind=Math.sin(rawT*Math.PI*4+v*5+u*3)*W*0.007*intensityMul*(wHead*0.8+wChest*0.6+wLower*0.9);
               offX+=wind;
@@ -823,6 +644,7 @@ async function triggerVideoConversion(customOpts){
     prompt:promptVal,
     subjectMotion:customOpts?.subjectMotion||$('subjectMotion')?.value||'auto',
     camera:customOpts?.camera||$('camera').value,
+    rigAction:$('rigAction')?.value||'idle',
     duration:customOpts?.duration||Number($('duration').value),
     intensity:customOpts?.intensity||$('intensity').value,
     onProgress:(pct,msg)=>{
@@ -834,18 +656,14 @@ async function triggerVideoConversion(customOpts){
 
   try{
     let res;
-    if(apiConfig.provider==='fal-proxy'){
-      res=await generateViaFalProxy(reqOpts);
-    }else if(isExternalApiActive()){
-      res=await generateViaExternalApi(reqOpts);
-    }else{
-      res=await renderRealVideoLocal(reqOpts);
-    }
+    res=await renderRealVideoLocal(reqOpts);
 
     showRenderedVideo(res,title);
 
-    if(dailyState.producedCount<DAILY_LIMIT){
-      dailyState.producedCount++;
+    if(customOpts?.id){
+      const queuedItem=dailyState.queue.find(item=>item.id===customOpts.id);
+      if(queuedItem)queuedItem.status='done';
+    }else{
       dailyState.queue.push({
         id:'vid-'+Date.now(),
         commandId:activeCmd?activeCmd.id:null,
@@ -856,15 +674,16 @@ async function triggerVideoConversion(customOpts){
         intensity:reqOpts.intensity,
         status:'done'
       });
-      saveDailyState();
-      renderQuotaAndBatch();
     }
+    dailyState.producedCount++;
+    saveDailyState();
+    renderQuotaAndBatch();
 
-    toast('تم إنشاء الحركة مجاناً. يمكنك معاينتها أو تنزيلها بشكل مستقل.');
+    toast('تم إنشاء الفيديو محلياً مجاناً. يمكنك معاينته أو تنزيله بشكل مستقل.');
   }catch(err){
     console.error(err);
     const reason=err?.message||'خطأ غير معروف';
-    toast(`تعذّر التوليد (${reason})`);
+    toast(`تعذّر إنشاء الفيديو: ${reason}`);
   }finally{
     isRendering=false;
     if(genBtn){genBtn.disabled=false;genBtn.textContent='🎬 إنشاء الحركة مجاناً';}
@@ -1003,43 +822,7 @@ $('file').addEventListener('change',e=>setImage(e.target.files[0]));
 $('uploadBtn').onclick=()=> $('file').click();
 $('chooseBtn').onclick=()=> $('file').click();
 $('backToImageBtn')?.addEventListener('click',switchToImageView);
-$('openApiConfigBtn')?.addEventListener('click',()=>$('apiSection')?.scrollIntoView({behavior:'smooth'}));
-
-$('apiProvider')?.addEventListener('change',e=>{
-  const p=e.target.value;
-  if($('apiEndpoint'))$('apiEndpoint').value=DEFAULT_ENDPOINTS[p]||'';
-});
-
-$('saveApiBtn')?.addEventListener('click',()=>{
-  const provider=$('apiProvider')?.value||'local';
-  const endpoint=($('apiEndpoint')?.value||'').trim();
-  const apiKey=($('apiKey')?.value||'').trim();
-  const proxy=($('apiProxy')?.value||'').trim();
-  const accessCode=($('apiAccessCode')?.value||'').trim();
-
-  if(provider!=='local'&&provider!=='fal-proxy'&&!apiKey&&!proxy){
-    return toast('أدخل مفتاح API أو رابط Proxy أولاً لتفعيل الربط الخارجي');
-  }
-  apiConfig={provider,endpoint,apiKey:provider==='fal-proxy'?'':apiKey,proxy:provider==='fal-proxy'?'':proxy,resolution:'1080p',accessCode:provider==='fal-proxy'?accessCode:''};
-  saveApiConfig();
-  toast('تم حفظ إعدادات المحرك الخارجي وتفعيلها!');
-});
-
-$('testApiBtn')?.addEventListener('click',()=>{
-  const provider=$('apiProvider')?.value||'local';
-  const apiKey=($('apiKey')?.value||'').trim();
-  const proxy=($('apiProxy')?.value||'').trim();
-  if(provider==='local')return toast('أنت حالياً على الوضع المجاني المحلي.');
-  if(provider==='fal-proxy')return toast('أضف FAL_KEY و MOTION_API_ACCESS_CODE في Vercel، ثم احفظ رمز الوصول هنا.');
-  if(!apiKey&&!proxy)return toast('يرجى إدخال مفتاح API أو رابط Proxy للاختبار');
-  toast(`الإعدادات جاهزة لـ (${provider}) — ارفع صورة واضغط تحويل إلى فيديو للتجربة`);
-});
-
-$('clearApiBtn')?.addEventListener('click',()=>{
-  apiConfig={provider:'local',endpoint:'',apiKey:'',proxy:''};
-  saveApiConfig();
-  toast('تم إلغاء الربط الخارجي والعودة للمحرك المحلي');
-});
+$('localEngineInfoBtn')?.addEventListener('click',()=>toast('المحرك مجاني ويعمل داخل المتصفح؛ لا توجد خدمات مدفوعة متصلة.'));
 
 $('drop').addEventListener('dragover',e=>{e.preventDefault();$('drop').style.borderColor='#a98bff'});
 $('drop').addEventListener('dragleave',()=> $('drop').style.borderColor='');
@@ -1060,7 +843,7 @@ $('duration').onchange=()=>{$('durationTick').textContent='0:'+String($('duratio
 $('addKey').onclick=()=>{const p=Number(prompt('أدخل موضع نقطة الحركة من 0 إلى 100 (نسبة من مدة المشهد):'));if(Number.isNaN(p)||p<0||p>100)return toast('النسبة يجب أن تكون من 0 إلى 100');keys.push(p);renderKeys();toast('تمت إضافة نقطة حركة')};
 function renderKeys(){const line=$('trackline');line.querySelectorAll('.key').forEach(k=>{if(!['0','50','100'].includes(k.dataset.key))k.remove()});keys.forEach((p,i)=>{if(i<3)return;const b=document.createElement('button');b.className='key';b.style.left=p+'%';b.dataset.key=p;b.title='نقطة حركة '+p+'%';b.onclick=()=>{if(confirm('حذف نقطة الحركة '+p+'٪؟')){keys.splice(i,1);renderKeys()}};line.append(b)})}
 
-function projectData(){return {app:'Motion AI Studio',version:5,createdAt:new Date().toISOString(),apiProvider:apiConfig.provider,dailyLimit:DAILY_LIMIT,dailyProducedCount:dailyState.producedCount,imageName:$('file').files[0]?.name||null,prompt:$('prompt').value,durationSeconds:Number($('duration').value),camera:$('camera').value,subjectMotion:$('subjectMotion')?.value,intensity:$('intensity').value,keyframes:keys,selectedCommandId}}
+function projectData(){return {app:'Motion AI Studio',version:6,createdAt:new Date().toISOString(),apiProvider:'local',dailyLimit:'unlimited',dailyProducedCount:dailyState.producedCount,imageName:$('file').files[0]?.name||null,prompt:$('prompt').value,durationSeconds:Number($('duration').value),camera:$('camera').value,subjectMotion:$('subjectMotion')?.value,intensity:$('intensity').value,keyframes:keys,selectedCommandId}}
 $('saveProject').onclick=()=>{const data=projectData();const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='motion-project.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('تم تنزيل ملف إعدادات المشروع')};
 
 $('commandsList')?.addEventListener('click',e=>{const card=e.target.closest('.cmd-item[data-cmd-id]');if(!card)return;applyCommandById(card.dataset.cmdId);});
@@ -1080,7 +863,7 @@ $('batchList')?.addEventListener('click',e=>{
 
 $('queueVideoBtn')?.addEventListener('click',()=>{
   const usedSlots=dailyState.producedCount+dailyState.queue.filter(i=>i.status!=='done').length;
-  if(usedSlots>=DAILY_LIMIT)return toast('تم بلوغ حد 100 فيديو لليوم');
+  if(usedSlots>=DAILY_LIMIT)return toast('لا يمكن إضافة مشهد جديد حالياً');
   const activeCmd=COMMANDS_100.find(c=>c.id===selectedCommandId);
   dailyState.queue.push({
     id:'vid-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
@@ -1100,7 +883,7 @@ $('queueVideoBtn')?.addEventListener('click',()=>{
 $('fillFromCommandsBtn')?.addEventListener('click',()=>{
   const usedSlots=dailyState.producedCount+dailyState.queue.filter(i=>i.status!=='done').length;
   const availableSlots=DAILY_LIMIT-usedSlots;
-  if(availableSlots<=0)return toast('لا توجد خانات متبقية ضمن حد 100 فيديو لليوم');
+  if(availableSlots<=0)return toast('لا توجد مساحة متاحة لإضافة مشاهد جديدة');
 
   const q=($('cmdSearch')?.value||'').trim().toLowerCase();
   const cat=$('cmdCategory')?.value||'all';
@@ -1145,41 +928,18 @@ $('fillFromCommandsBtn')?.addEventListener('click',()=>{
 });
 
 $('runBatchBtn')?.addEventListener('click',()=>{
-  const remainingQuota=DAILY_LIMIT-dailyState.producedCount;
-  if(remainingQuota<=0)return toast('اكتملت حصة 100 فيديو لهذا اليوم');
-  let processed=0;
-  for(const item of dailyState.queue){
-    if(item.status!=='done'&&processed<10&&dailyState.producedCount<DAILY_LIMIT){
-      item.status='done';
-      dailyState.producedCount++;
-      processed++;
-    }
-  }
-  if(!processed){
-    const activeCmd=COMMANDS_100.find(c=>c.id===selectedCommandId);
-    const toCreate=Math.min(10,remainingQuota);
-    for(let i=0;i<toCreate;i++){
-      dailyState.queue.push({
-        id:'vid-'+Date.now()+'-'+i,
-        commandId:activeCmd?activeCmd.id:null,
-        title:activeCmd?`${activeCmd.code} ${activeCmd.title} (${i+1})`:`فيديو يومي #${dailyState.producedCount+1}`,
-        prompt:($('prompt').value||'').trim()||'حركة سينمائية هادئة',
-        camera:$('camera').value,
-        duration:Number($('duration').value),
-        intensity:$('intensity').value,
-        status:'done'
-      });
-      dailyState.producedCount++;
-      processed++;
-    }
-  }
-  saveDailyState();
-  renderQuotaAndBatch();
-  toast(`تم تجهيز ${processed} فيديو ضمن حصة الـ 100 فيديو اليومية`);
+  const item=dailyState.queue.find(q=>q.status!=='done');
+  if(!item)return toast('لا توجد مشاهد معلقة. أضف مشهداً إلى القائمة أولاً.');
+  if(!imageUrl||!loadedImgEl)return toast('ارفع صورة أولاً قبل توليد المشاهد من القائمة.');
+  $('prompt').value=item.prompt||'';
+  if(item.camera)$('camera').value=item.camera;
+  if(item.duration)$('duration').value=String(item.duration);
+  if(item.intensity)$('intensity').value=item.intensity;
+  triggerVideoConversion(item);
 });
 
 $('resetQuotaBtn')?.addEventListener('click',()=>{
-  if(!confirm('هل تريد تصفير عدّاد وقائمة الـ 100 فيديو لليوم؟'))return;
+  if(!confirm('هل تريد مسح سجل الإنتاج وقائمة المشاهد؟'))return;
   dailyState={date:new Date().toISOString().slice(0,10),producedCount:0,queue:[]};
   saveDailyState();
   renderQuotaAndBatch();
@@ -1191,7 +951,7 @@ $('exportBatchBtn')?.addEventListener('click',()=>{
     date:dailyState.date,
     dailyLimit:DAILY_LIMIT,
     producedCount:dailyState.producedCount,
-    remaining:Math.max(0,DAILY_LIMIT-dailyState.producedCount),
+    remaining:'unlimited',
     items:dailyState.queue
   };
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
@@ -1208,7 +968,7 @@ document.querySelectorAll('.sidebar nav button').forEach(b=>b.onclick=()=>{
   if(b.dataset.page==='editor')window.scrollTo({top:0,behavior:'smooth'});
   else if(b.dataset.page==='projects'){$('batchSection')?.scrollIntoView({behavior:'smooth'});toast('سجل المشاريع والدفعات متاح في الأسفل')}
   else if(b.dataset.page==='presets'){$('motionLibrary')?.scrollIntoView({behavior:'smooth'});toast('قائمة الـ 100 أمر حركة متاحة هنا')}
-  else if(b.dataset.page==='settings'){$('apiSection')?.scrollIntoView({behavior:'smooth'});toast('إعدادات ربط المحرك الخارجي متاحة هنا')}
+  else if(b.dataset.page==='settings'){$('apiSection')?.scrollIntoView({behavior:'smooth'});toast('المحرك المجاني المحلي يعمل دون API')}
 });
 document.querySelectorAll('.key').forEach(k=>k.addEventListener('click',()=>toast('نقطة الحركة عند '+k.dataset.key+'٪')));
 

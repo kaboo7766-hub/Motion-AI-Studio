@@ -1,18 +1,21 @@
-# Motion AI Studio — Full Character Motion (Artifact-Free Mesh Engine)
+# Motion AI Studio — Free Local Motion Engine
 
-## What Was Fixed & Verified
-1. **Zero Slice Tears or Seams (`16x16` Continuous Bilinear Triangle Mesh):** Replaced horizontal strip slicing (which could cause visible horizontal step lines or edge gaps) with a continuous 16×16 triangulated mesh with sub-pixel seam padding and pinned outer borders (`borderPin = 0` at edges).
-2. **Automatic Subject Detection (`detectSubjectCenter`):** Automatically locates the person(s) in the frame and applies smooth Gaussian-weighted articulation to the head, torso/chest, and lower body (breathing, walking gait, head turn/nod, or action lunge) without distorting the background frame.
-3. **Full-Frame Display:** Keeps 100% of the uploaded image and exported video visible on mobile and desktop.
+## 100% free local mode
 
+The application now runs without fal.ai, Kling, Replicate, paid APIs, API keys, access codes, subscriptions, or billing credentials. Image processing and video rendering happen in the user's browser using Canvas, a continuous 2D mesh deformation renderer, and the browser's MediaRecorder API.
 
-## Free local character motion
+## What the local renderer does
 
-The default local renderer works without an API key, paid subscription, or external generation service. It creates an animated video in the browser using the built-in 2D mesh motion engine. Generation and download are separate actions: generate first, preview the result, then use the dedicated Download button. External AI providers remain optional and may charge their own fees.
+- Loads images locally in the browser; it does not upload them to a generation provider.
+- Applies camera movement, subtle subject-area mesh deformation, breathing-like motion, walk-like sway, head/torso movement approximations, weather overlays, glow, fog, and particles.
+- Exports a real video file locally (WebM on browsers that support it; MP4 only when the browser's MediaRecorder supports MP4).
+- Keeps generation, preview, and download as separate steps.
+- Includes 100 Arabic motion prompts, local project JSON export, and a scene queue.
 
+## Honest limitations
 
-## Hybrid motion engines
+This is a lightweight 2D animation and mesh-warping engine, not a generative AI video model. It cannot invent missing body parts, create genuinely new poses, or guarantee realistic human walking, facial expressions, or lip-sync. Results depend on the image, browser support, and device performance. Use a recent Chrome-based browser for the best chance of video export.
 
-- Free local mode remains available without API credentials. It is a lightweight browser-based mesh/scene animation effect, not full-body generative human animation.
-- Professional mode uses the fal.ai queue API with Kling image-to-video models through the Vercel serverless endpoint at `/api/motion`. The browser never receives the `FAL_KEY`; configure it as a Vercel environment variable.
-- Generation, preview, and download remain separate steps. Professional generation is metered and may incur provider charges. The endpoint accepts only an allowlisted model and uses fixed upstream URLs.
+## Hosting
+
+The static app can be hosted on GitHub Pages or Vercel's free static hosting. No server-side video generation endpoint or paid provider secret is required.
