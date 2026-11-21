@@ -834,7 +834,9 @@ async function triggerVideoConversion(customOpts){
 
   try{
     let res;
-    if(isExternalApiActive()){
+    if(apiConfig.provider==='fal-proxy'){
+      res=await generateViaFalProxy(reqOpts);
+    }else if(isExternalApiActive()){
       res=await generateViaExternalApi(reqOpts);
     }else{
       res=await renderRealVideoLocal(reqOpts);
