@@ -916,6 +916,11 @@ function switchToImageView(){
     $('stageControls').hidden=false;
     $('empty').hidden=true;
     if($('stage'))$('stage').classList.add('has-media');
+  }else{
+    $('photo').hidden=true;
+    $('stageControls').hidden=true;
+    $('empty').hidden=false;
+    if($('stage'))$('stage').classList.remove('has-media');
   }
   if($('backToImageBtn'))$('backToImageBtn').hidden=true;
 }
