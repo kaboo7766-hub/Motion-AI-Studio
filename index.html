@@ -70,7 +70,7 @@
 </div>
 
 <div class="settings-grid">
-<div><label class="label">تحريك الشخصيات (محلي)</label><select id="subjectMotion"><option value="auto" selected>تلقائي ذكي (رأس + جسم + ملابس)</option><option value="walk">مشي وخطوات للأمام</option><option value="talk">التفات وابتسامة وتعبير</option><option value="action">حركة أكشن ديناميكية</option><option value="none">ثبات الشخصية (كاميرا فقط)</option></select></div>
+<div><label class="label">المؤثر المحلي المجاني (حركة 2D بسيطة)</label><select id="subjectMotion"><option value="auto" selected>حركة بصرية تلقائية بسيطة</option><option value="walk">محاكاة مشي بسيطة</option><option value="talk">محاكاة التفات وتعبير</option><option value="action">محاكاة حركة أكشن</option><option value="none">ثبات الشخصية (كاميرا فقط)</option></select></div>
 <div><label class="label">حركة الكاميرا</label><select id="camera"><option value="none">ثابتة (عرض كامل)</option><option value="zoom" selected>تقريب خفيف</option><option value="zoomout">ابتعاد خفيف</option><option value="pan">تحريك أفقي</option><option value="tilt">ميل رأسي</option><option value="orbit">دوران سينمائي</option></select></div>
 <div><label class="label">مدة المشهد</label><select id="duration"><option value="4">4 ثوانٍ</option><option value="5" selected>5 ثوانٍ</option><option value="8">8 ثوانٍ</option><option value="10">10 ثوانٍ</option></select></div>
 <div><label class="label">سرعة وقوة الحركة</label><select id="intensity"><option value="subtle">هادئة وخفيفة</option><option value="medium" selected>طبيعية ومتوسطة</option><option value="strong">قوية ونشطة</option></select></div>
@@ -94,8 +94,6 @@
 <select id="apiProvider">
 <option value="local">محرك المتصفح المحلي (بدون API)</option>
 <option value="fal-proxy">AI احترافي عبر fal.ai (Kling 4.0 / Kling 3.0)</option>
-<option value="replicate">Replicate API (Predictions)</option>
-<option value="custom">خادم مخصص / Webhook (POST JSON)</option>
 </select>
 </div>
 <div>
