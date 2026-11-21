@@ -175,7 +175,9 @@ function loadApiConfig(){
   try{
     const raw=localStorage.getItem(API_CONFIG_KEY);
     if(!raw)return {provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
-    const cfg=Object.assign({provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p'},JSON.parse(raw));\n    if(cfg.provider==='fal'){cfg.provider='fal-proxy';cfg.endpoint='kling/v4/image-to-video';cfg.apiKey='';}\n    return cfg;
+    const cfg=Object.assign({provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p'},JSON.parse(raw));
+    if(cfg.provider==='fal'){cfg.provider='fal-proxy';cfg.endpoint='kling/v4/image-to-video';cfg.apiKey='';}
+    return cfg;
   }catch(_){
     return {provider:'local',endpoint:'',apiKey:'',proxy:''};
   }
@@ -189,13 +191,19 @@ function saveApiConfig(){
 }
 
 function isExternalApiActive(){
-  return apiConfig.provider!=='local'&&(Boolean(apiConfig.apiKey)||Boolean(apiConfig.proxy));
+  return apiConfig.provider==='fal-proxy'||(apiConfig.provider!=='local'&&(Boolean(apiConfig.apiKey)||Boolean(apiConfig.proxy)));
 }
 
 function updateApiUI(){
   if($('apiProvider'))$('apiProvider').value=apiConfig.provider||'local';
-  if($('apiEndpoint'))$('apiEndpoint').value=apiConfig.endpoint||DEFAULT_ENDPOINTS[apiConfig.provider]||'';\n  if($('apiKey'))$('apiKey').disabled=apiConfig.provider==='fal-proxy';\n  if($('apiAccessCode'))$('apiAccessCode').value=apiConfig.accessCode||'';\n  if($('apiAccessCode'))$('apiAccessCode').disabled=apiConfig.provider!=='fal-proxy';\n  if($('apiProxy'))$('apiProxy').disabled=apiConfig.provider==='fal-proxy';
+  if($('apiEndpoint'))$('apiEndpoint').value=apiConfig.endpoint||DEFAULT_ENDPOINTS[apiConfig.provider]||'';
+  if($('apiKey'))$('apiKey').disabled=apiConfig.provider==='fal-proxy';
+  if($('apiAccessCode'))$('apiAccessCode').value=apiConfig.accessCode||'';
+  if($('apiAccessCode'))$('apiAccessCode').disabled=apiConfig.provider!=='fal-proxy';
+  if($('apiProxy'))$('apiProxy').disabled=apiConfig.provider==='fal-proxy';
   if($('apiKey'))$('apiKey').value=apiConfig.apiKey||'';
+  if($('apiAccessCode'))$('apiAccessCode').value=apiConfig.accessCode||'';
+  if($('apiAccessCode'))$('apiAccessCode').disabled=apiConfig.provider!=='fal-proxy';
   if($('apiProxy'))$('apiProxy').value=apiConfig.proxy||'';
 
   const active=isExternalApiActive();
@@ -206,9 +214,10 @@ function updateApiUI(){
   if($('renderBadge'))$('renderBadge').textContent=active?`API · ${apiConfig.provider.toUpperCase()}`:'LOCAL ENGINE';
   if($('engineModePill'))$('engineModePill').textContent=active?`✦ ${pName} API`:'✦ LOCAL AI';
   if($('engineNotice')){
-    $('engineNotice').textContent=active
-      ?`متصل حالياً بمحرك (${pName}). سيتم عرض الصورة والفيديو بالحجم الكامل وتحريك الأشخاص بالذكاء الاصطناعي.`
-      :'الوضع الحالي: عرض كامل للصورة + تحريك الأشخاص محلياً (تنفّس، إيماءة رأس، حركة جسم وملابس). ولتحريك واقعي كامل بالذكاء الاصطناعي اربط مفتاح API بالأسفل.';
+    $('engineNotice').textContent=apiConfig.provider==='fal-proxy'
+      ?'وضع AI الاحترافي محدد. أضف FAL_KEY و MOTION_API_ACCESS_CODE في Vercel، ثم أدخل رمز الوصول هنا. قد تُخصم تكلفة لكل عملية توليد.'
+      :active?`متصل حالياً بمحرك (${pName}). سيتم إرسال الصورة إلى مزود AI لتوليد الفيديو.`
+      :'الوضع المجاني المحلي يصنع حركة بصرية بسيطة، وليس تحريكاً بشرياً حقيقياً.';
   }
 }
 
@@ -286,7 +295,7 @@ async function generateViaFalProxy(opts){
   if(typeof opts.onProgress==='function')opts.onProgress(8,'جاري إرسال الصورة بأمان إلى محرك Kling...');
   const submitRes=await fetch('/api/motion',{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:{'Content-Type':'application/json','x-motion-access':apiConfig.accessCode||''},
     body:JSON.stringify({
       action:'submit',
       model,
@@ -1005,7 +1014,8 @@ $('saveApiBtn')?.addEventListener('click',()=>{
   const provider=$('apiProvider')?.value||'local';
   const endpoint=($('apiEndpoint')?.value||'').trim();
   const apiKey=($('apiKey')?.value||'').trim();
-  const proxy=($('apiProxy')?.value||'').trim();\n  const accessCode=($('apiAccessCode')?.value||'').trim();
+  const proxy=($('apiProxy')?.value||'').trim();
+  const accessCode=($('apiAccessCode')?.value||'').trim();
 
   if(provider!=='local'&&provider!=='fal-proxy'&&!apiKey&&!proxy){
     return toast('أدخل مفتاح API أو رابط Proxy أولاً لتفعيل الربط الخارجي');
@@ -1019,7 +1029,8 @@ $('testApiBtn')?.addEventListener('click',()=>{
   const provider=$('apiProvider')?.value||'local';
   const apiKey=($('apiKey')?.value||'').trim();
   const proxy=($('apiProxy')?.value||'').trim();
-  if(provider==='local')return toast('أنت حالياً على الوضع المجاني المحلي.');\n  if(provider==='fal-proxy')return toast('سيتم فحص FAL_KEY عند بدء أول طلب. أضفه في إعدادات Vercel لحماية المفتاح.');
+  if(provider==='local')return toast('أنت حالياً على الوضع المجاني المحلي.');
+  if(provider==='fal-proxy')return toast('سيتم فحص FAL_KEY عند بدء أول طلب. أضفه في إعدادات Vercel لحماية المفتاح.');
   if(!apiKey&&!proxy)return toast('يرجى إدخال مفتاح API أو رابط Proxy للاختبار');
   toast(`الإعدادات جاهزة لـ (${provider}) — ارفع صورة واضغط تحويل إلى فيديو للتجربة`);
 });
