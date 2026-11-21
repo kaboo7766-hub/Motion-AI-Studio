@@ -174,7 +174,7 @@ const DEFAULT_ENDPOINTS={
 function loadApiConfig(){
   try{
     const raw=localStorage.getItem(API_CONFIG_KEY);
-    if(!raw)return {provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p'};
+    if(!raw)return {provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
     const cfg=Object.assign({provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p'},JSON.parse(raw));\n    if(cfg.provider==='fal'){cfg.provider='fal-proxy';cfg.endpoint='kling/v4/image-to-video';cfg.apiKey='';}\n    return cfg;
   }catch(_){
     return {provider:'local',endpoint:'',apiKey:'',proxy:''};
@@ -194,15 +194,15 @@ function isExternalApiActive(){
 
 function updateApiUI(){
   if($('apiProvider'))$('apiProvider').value=apiConfig.provider||'local';
-  if($('apiEndpoint'))$('apiEndpoint').value=apiConfig.endpoint||DEFAULT_ENDPOINTS[apiConfig.provider]||'';\n  if($('apiKey'))$('apiKey').disabled=apiConfig.provider==='fal-proxy';\n  if($('apiProxy'))$('apiProxy').disabled=apiConfig.provider==='fal-proxy';
+  if($('apiEndpoint'))$('apiEndpoint').value=apiConfig.endpoint||DEFAULT_ENDPOINTS[apiConfig.provider]||'';\n  if($('apiKey'))$('apiKey').disabled=apiConfig.provider==='fal-proxy';\n  if($('apiAccessCode'))$('apiAccessCode').value=apiConfig.accessCode||'';\n  if($('apiAccessCode'))$('apiAccessCode').disabled=apiConfig.provider!=='fal-proxy';\n  if($('apiProxy'))$('apiProxy').disabled=apiConfig.provider==='fal-proxy';
   if($('apiKey'))$('apiKey').value=apiConfig.apiKey||'';
   if($('apiProxy'))$('apiProxy').value=apiConfig.proxy||'';
 
   const active=isExternalApiActive();
-  const names={local:'محلي',fal:'fal.ai',replicate:'Replicate',custom:'خادم مخصص'};
+  const names={local:'محلي مجاني','fal-proxy':'Kling AI احترافي',fal:'fal.ai',replicate:'Replicate',custom:'خادم مخصص'};
   const pName=names[apiConfig.provider]||'محلي';
 
-  if($('apiStatusBadge'))$('apiStatusBadge').textContent=active?`متصل: ${pName}`:'غير متصل (يعمل محلياً)';
+  if($('apiStatusBadge'))$('apiStatusBadge').textContent=apiConfig.provider==='fal-proxy'?'تم اختيار AI — يلزم إعداد FAL_KEY و Access Code في Vercel':active?`متصل: ${pName}`:'الوضع المجاني المحلي';
   if($('renderBadge'))$('renderBadge').textContent=active?`API · ${apiConfig.provider.toUpperCase()}`:'LOCAL ENGINE';
   if($('engineModePill'))$('engineModePill').textContent=active?`✦ ${pName} API`:'✦ LOCAL AI';
   if($('engineNotice')){
@@ -301,14 +301,14 @@ async function generateViaFalProxy(opts){
   if(!submitData.request_id)throw new Error('لم يرجع مزود AI رقم الطلب');
   for(let attempt=1;attempt<=180;attempt++){
     await new Promise(resolve=>setTimeout(resolve,4000));
-    const statusRes=await fetch('/api/motion?action=status&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id));
+    const statusRes=await fetch('/api/motion?action=status&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id),{headers:{'x-motion-access':apiConfig.accessCode||''}});
     const statusData=await statusRes.json().catch(()=>({}));
     if(!statusRes.ok)throw new Error(statusData.error||'تعذر متابعة طلب AI');
     const state=String(statusData.status||'').toUpperCase();
     if(typeof opts.onProgress==='function')opts.onProgress(Math.min(94,12+Math.round(attempt/180*82)),state==='IN_QUEUE'?'طلبك في قائمة انتظار Kling...':'جاري إنشاء حركة الشخصية بالذكاء الاصطناعي...');
     if(state==='FAILED'||state==='CANCELLED')throw new Error(statusData.error||'فشل توليد الفيديو من مزود AI');
     if(state==='COMPLETED'){
-      const resultRes=await fetch('/api/motion?action=result&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id));
+      const resultRes=await fetch('/api/motion?action=result&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id),{headers:{'x-motion-access':apiConfig.accessCode||''}});
       const resultData=await resultRes.json().catch(()=>({}));
       if(!resultRes.ok)throw new Error(resultData.error||'تعذر استلام الفيديو النهائي');
       const videoUrl=resultData.video?.url||resultData.data?.video?.url;
@@ -1005,12 +1005,12 @@ $('saveApiBtn')?.addEventListener('click',()=>{
   const provider=$('apiProvider')?.value||'local';
   const endpoint=($('apiEndpoint')?.value||'').trim();
   const apiKey=($('apiKey')?.value||'').trim();
-  const proxy=($('apiProxy')?.value||'').trim();
+  const proxy=($('apiProxy')?.value||'').trim();\n  const accessCode=($('apiAccessCode')?.value||'').trim();
 
   if(provider!=='local'&&provider!=='fal-proxy'&&!apiKey&&!proxy){
     return toast('أدخل مفتاح API أو رابط Proxy أولاً لتفعيل الربط الخارجي');
   }
-  apiConfig={provider,endpoint,apiKey:provider==='fal-proxy'?'':apiKey,proxy:provider==='fal-proxy'?'':proxy,resolution:'1080p'};
+  apiConfig={provider,endpoint,apiKey:provider==='fal-proxy'?'':apiKey,proxy:provider==='fal-proxy'?'':proxy,resolution:'1080p',accessCode:provider==='fal-proxy'?accessCode:''};
   saveApiConfig();
   toast('تم حفظ إعدادات المحرك الخارجي وتفعيلها!');
 });
