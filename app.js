@@ -165,6 +165,7 @@ const COMMANDS_100=(()=>{
 
 const DEFAULT_ENDPOINTS={
   local:'',
+  'fal-proxy':'kling/v4/image-to-video',
   fal:'https://queue.fal.run/fal-ai/kling-video/v1.6/standard/image-to-video',
   replicate:'https://api.replicate.com/v1/predictions',
   custom:'https://your-server.example.com/api/image-to-video'
@@ -173,8 +174,8 @@ const DEFAULT_ENDPOINTS={
 function loadApiConfig(){
   try{
     const raw=localStorage.getItem(API_CONFIG_KEY);
-    if(!raw)return {provider:'local',endpoint:'',apiKey:'',proxy:''};
-    return Object.assign({provider:'local',endpoint:'',apiKey:'',proxy:''},JSON.parse(raw));
+    if(!raw)return {provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p'};
+    const cfg=Object.assign({provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p'},JSON.parse(raw));\n    if(cfg.provider==='fal'){cfg.provider='fal-proxy';cfg.endpoint='kling/v4/image-to-video';cfg.apiKey='';}\n    return cfg;
   }catch(_){
     return {provider:'local',endpoint:'',apiKey:'',proxy:''};
   }
@@ -193,7 +194,7 @@ function isExternalApiActive(){
 
 function updateApiUI(){
   if($('apiProvider'))$('apiProvider').value=apiConfig.provider||'local';
-  if($('apiEndpoint'))$('apiEndpoint').value=apiConfig.endpoint||DEFAULT_ENDPOINTS[apiConfig.provider]||'';
+  if($('apiEndpoint'))$('apiEndpoint').value=apiConfig.endpoint||DEFAULT_ENDPOINTS[apiConfig.provider]||'';\n  if($('apiKey'))$('apiKey').disabled=apiConfig.provider==='fal-proxy';\n  if($('apiProxy'))$('apiProxy').disabled=apiConfig.provider==='fal-proxy';
   if($('apiKey'))$('apiKey').value=apiConfig.apiKey||'';
   if($('apiProxy'))$('apiProxy').value=apiConfig.proxy||'';
 
@@ -276,6 +277,47 @@ function getOptimizedImageDataUrl(){
   c.height=Math.round(srcH*scale);
   c.getContext('2d').drawImage(loadedImgEl,0,0,c.width,c.height);
   return c.toDataURL('image/jpeg',0.9);
+}
+
+async function generateViaFalProxy(opts){
+  const imgData=getOptimizedImageDataUrl();
+  if(!imgData)throw new Error('لا توجد صورة جاهزة للإرسال');
+  const model=apiConfig.endpoint||'kling/v4/image-to-video';
+  if(typeof opts.onProgress==='function')opts.onProgress(8,'جاري إرسال الصورة بأمان إلى محرك Kling...');
+  const submitRes=await fetch('/api/motion',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      action:'submit',
+      model,
+      imageDataUrl:imgData,
+      prompt:opts.prompt||'Natural realistic full-body human movement, preserve the character identity and clothing.',
+      duration:Math.max(3,Math.min(30,Number(opts.duration)||5)),
+      resolution:'1080p'
+    })
+  });
+  const submitData=await submitRes.json().catch(()=>({}));
+  if(!submitRes.ok)throw new Error(submitData.error||'تعذر بدء طلب AI الاحترافي');
+  if(!submitData.request_id)throw new Error('لم يرجع مزود AI رقم الطلب');
+  for(let attempt=1;attempt<=180;attempt++){
+    await new Promise(resolve=>setTimeout(resolve,4000));
+    const statusRes=await fetch('/api/motion?action=status&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id));
+    const statusData=await statusRes.json().catch(()=>({}));
+    if(!statusRes.ok)throw new Error(statusData.error||'تعذر متابعة طلب AI');
+    const state=String(statusData.status||'').toUpperCase();
+    if(typeof opts.onProgress==='function')opts.onProgress(Math.min(94,12+Math.round(attempt/180*82)),state==='IN_QUEUE'?'طلبك في قائمة انتظار Kling...':'جاري إنشاء حركة الشخصية بالذكاء الاصطناعي...');
+    if(state==='FAILED'||state==='CANCELLED')throw new Error(statusData.error||'فشل توليد الفيديو من مزود AI');
+    if(state==='COMPLETED'){
+      const resultRes=await fetch('/api/motion?action=result&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id));
+      const resultData=await resultRes.json().catch(()=>({}));
+      if(!resultRes.ok)throw new Error(resultData.error||'تعذر استلام الفيديو النهائي');
+      const videoUrl=resultData.video?.url||resultData.data?.video?.url;
+      if(!videoUrl)throw new Error('اكتمل الطلب لكن رابط الفيديو غير موجود');
+      if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل توليد الفيديو البشري الاحترافي!');
+      return {url:videoUrl,ext:'mp4',duration:Number(opts.duration)||5,source:'Kling AI via fal.ai'};
+    }
+  }
+  throw new Error('انتهت مهلة انتظار محرك AI؛ يمكنك إعادة المحاولة لاحقاً');
 }
 
 async function generateViaExternalApi(opts){
@@ -965,10 +1007,10 @@ $('saveApiBtn')?.addEventListener('click',()=>{
   const apiKey=($('apiKey')?.value||'').trim();
   const proxy=($('apiProxy')?.value||'').trim();
 
-  if(provider!=='local'&&!apiKey&&!proxy){
+  if(provider!=='local'&&provider!=='fal-proxy'&&!apiKey&&!proxy){
     return toast('أدخل مفتاح API أو رابط Proxy أولاً لتفعيل الربط الخارجي');
   }
-  apiConfig={provider,endpoint,apiKey,proxy};
+  apiConfig={provider,endpoint,apiKey:provider==='fal-proxy'?'':apiKey,proxy:provider==='fal-proxy'?'':proxy,resolution:'1080p'};
   saveApiConfig();
   toast('تم حفظ إعدادات المحرك الخارجي وتفعيلها!');
 });
@@ -977,7 +1019,7 @@ $('testApiBtn')?.addEventListener('click',()=>{
   const provider=$('apiProvider')?.value||'local';
   const apiKey=($('apiKey')?.value||'').trim();
   const proxy=($('apiProxy')?.value||'').trim();
-  if(provider==='local')return toast('أنت حالياً على الوضع المحلي، اختر مزود API أولاً');
+  if(provider==='local')return toast('أنت حالياً على الوضع المجاني المحلي.');\n  if(provider==='fal-proxy')return toast('سيتم فحص FAL_KEY عند بدء أول طلب. أضفه في إعدادات Vercel لحماية المفتاح.');
   if(!apiKey&&!proxy)return toast('يرجى إدخال مفتاح API أو رابط Proxy للاختبار');
   toast(`الإعدادات جاهزة لـ (${provider}) — ارفع صورة واضغط تحويل إلى فيديو للتجربة`);
 });
