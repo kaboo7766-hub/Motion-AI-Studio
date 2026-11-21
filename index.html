@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#09112e">
-<title>Motion AI Studio</title>
+<title>Motion AI Studio — تحريك الشخصيات الكامل</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,8 +16,13 @@
 <header class="topbar"><div class="crumb">مساحة العمل <span>/</span> <b>محرر الحركة</b></div><div class="top-actions"><button class="outline small" id="openApiConfigBtn">🔌 ربط محرك AI</button><button class="ghost" id="lang">EN</button><button class="ghost">؟</button><div class="avatar">T</div></div></header>
 <section class="hero"><div class="hero-text"><div class="eyebrow">✦ محرّك الإبداع</div><h1>خلّي صورك <span>تتحرك</span></h1><p>اكتب الحركة اللي في خيالك، وابدأ في تحويل صورتك إلى فيديو حقيقي.</p></div><div class="hero-art"><div class="orbit o1"></div><div class="orbit o2"></div><div class="play-big">▶</div><span class="spark s1">✦</span><span class="spark s2">✧</span></div></section>
 <div class="workspace">
-<section class="preview-card panel"><div class="panel-head"><div><h2>معاينة وتحويل الفيديو</h2><small>استعرض تأثير الحركة وحوّل الصورة إلى ملف فيديو</small></div><span class="quality" id="renderBadge">LOCAL ENGINE</span></div>
-<div class="preview-stage" id="stage"><div class="empty" id="empty"><div class="upload-icon">▧</div><b>ارفع صورة للبدء</b><small>اختر صورة من جهازك وشاهدها داخل المعاينة</small><button class="primary small" id="chooseBtn">＋ اختيار صورة</button></div><img id="photo" alt="معاينة الصورة" hidden><video id="resultVideo" controls playsinline crossorigin="anonymous" hidden></video><div class="stage-overlay" id="stageControls" hidden><button id="playBtn">▶</button><span id="timeLabel">00:00 / 00:08</span><input type="range" min="0" max="100" value="0" id="scrub"><button id="fullscreen">⛶</button></div></div>
+<section class="preview-card panel"><div class="panel-head"><div><h2>معاينة وتحويل الفيديو</h2><small>عرض كامل للصورة والفيديو مع تحريك الأشخاص</small></div><span class="quality" id="renderBadge">LOCAL ENGINE</span></div>
+<div class="preview-stage" id="stage">
+<div class="empty" id="empty"><div class="upload-icon">▧</div><b>ارفع صورة للبدء</b><small>اختر صورة من جهازك وشاهدها كاملة داخل المعاينة</small><button class="primary small" id="chooseBtn">＋ اختيار صورة</button></div>
+<img id="photo" alt="معاينة الصورة" hidden>
+<video id="resultVideo" controls playsinline crossorigin="anonymous" hidden></video>
+<div class="stage-overlay" id="stageControls" hidden><button id="playBtn">▶</button><span id="timeLabel">00:00 / 00:05</span><input type="range" min="0" max="100" value="0" id="scrub"><button id="fullscreen">⛶</button></div>
+</div>
 <div class="preview-foot"><span id="status">جاهز لاستقبال الصورة</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="outline" id="backToImageBtn" hidden>🖼 عرض الصورة</button><button class="outline" id="resetMotion">↻ إعادة الحركة</button></div></div>
 
 <div class="render-box" id="renderBox" hidden>
@@ -45,9 +50,9 @@
 </div>
 </section>
 
-<section class="controls panel"><div class="panel-head"><div><h2>إعداد الحركة</h2><small>صف الحركة المطلوبة بالتفصيل</small></div><span class="magic" id="engineModePill">✦ AI READY</span></div>
+<section class="controls panel"><div class="panel-head"><div><h2>إعداد الحركة</h2><small>صف حركة الأشخاص والمشهد بالتفصيل</small></div><span class="magic" id="engineModePill">✦ AI READY</span></div>
 <div class="upload-strip" id="drop"><div class="upload-icon">⇧</div><div><b>ارفع صورتك</b><small>PNG · JPG · WEBP</small></div><button class="outline small" id="uploadBtn">تصفح الملفات</button><input type="file" id="file" accept="image/*" hidden></div>
-<label class="label" for="prompt">وصف الحركة</label><textarea id="prompt" placeholder="مثال: حركة كاميرا تقترب ببطء، مع ضباب خفيف وإضاءة سينمائية..."></textarea>
+<label class="label" for="prompt">وصف الحركة</label><textarea id="prompt" placeholder="مثال: الأشخاص يتحركون للأمام ويبتسمون مع حركة طبيعية للرأس واليدين والملابس..."></textarea>
 <div class="label-row"><span class="label">قوالب سريعة</span><button class="text-btn" id="clearPrompt">مسح النص</button></div><div class="presets" id="presets"><button data-prompt="حركة كاميرا بطيئة تقترب من الشخصية، حركة خفيفة للشعر والملابس، إضاءة سينمائية واقعية.">🎥 سينمائي</button><button data-prompt="الشخص يتحرك للأمام بخطوات طبيعية، تفاعل واقعي للجسم والملابس، والكاميرا تتابعه.">🚶 مشي</button><button data-prompt="الشخص يلتفت تدريجياً ناحية الكاميرا، يرفع رأسه ثم يبتسم، حركة طبيعية وناعمة.">🙂 تعبير</button><button data-prompt="حركة أكشن سريعة: اندفاع للأمام، حركة ديناميكية للجسم، كاميرا تتبع مع تأثير سينمائي.">⚡ أكشن</button><button data-prompt="نسيم خفيف يحرك الشعر والأشجار والملابس، السحب تتحرك ببطء، كاميرا ثابتة.">🍃 طبيعة</button><button data-prompt="ضباب كثيف يتدفق ببطء، إضاءة غامضة، حركة كاميرا زحف سينمائي بطيئة.">🌫️ رعب</button></div>
 
 <div class="motion-library" id="motionLibrary">
@@ -56,7 +61,7 @@
 <span class="lib-badge" id="libCount">100 / 100 أمر</span>
 </div>
 <div class="lib-controls">
-<input type="search" class="lib-search" id="cmdSearch" placeholder="ابحث في 100 أمر حركة (مثال: كاميرا، مشي، ضباب، أكشن)...">
+<input type="search" class="lib-search" id="cmdSearch" placeholder="ابحث في 100 أمر حركة (مثال: مشي، ابتسامة، كاميرا، أكشن)...">
 <select class="lib-category" id="cmdCategory">
 <option value="all">كل الأقسام (100)</option>
 </select>
@@ -64,18 +69,23 @@
 <div class="commands-list" id="commandsList"></div>
 </div>
 
-<div class="settings-grid"><div><label class="label">مدة المشهد</label><select id="duration"><option value="4">4 ثوانٍ</option><option value="5" selected>5 ثوانٍ</option><option value="8">8 ثوانٍ</option><option value="10">10 ثوانٍ</option></select></div><div><label class="label">حركة الكاميرا</label><select id="camera"><option value="none">ثابتة</option><option value="zoom" selected>تقريب بطيء</option><option value="zoomout">ابتعاد بطيء</option><option value="pan">تحريك أفقي</option><option value="tilt">ميل رأسي</option><option value="orbit">دوران سينمائي (تقريبي)</option></select></div><div><label class="label">سرعة الحركة</label><select id="speed"><option value="slow">هادئة</option><option value="normal" selected>طبيعية</option><option value="fast">سريعة</option></select></div><div><label class="label">قوة الحركة</label><select id="intensity"><option value="subtle">خفيفة</option><option value="medium" selected>متوسطة</option><option value="strong">قوية</option></select></div></div>
+<div class="settings-grid">
+<div><label class="label">تحريك الشخصيات (محلي)</label><select id="subjectMotion"><option value="auto" selected>تلقائي ذكي (رأس + جسم + ملابس)</option><option value="walk">مشي وخطوات للأمام</option><option value="talk">التفات وابتسامة وتعبير</option><option value="action">حركة أكشن ديناميكية</option><option value="none">ثبات الشخصية (كاميرا فقط)</option></select></div>
+<div><label class="label">حركة الكاميرا</label><select id="camera"><option value="none">ثابتة (عرض كامل)</option><option value="zoom" selected>تقريب خفيف</option><option value="zoomout">ابتعاد خفيف</option><option value="pan">تحريك أفقي</option><option value="tilt">ميل رأسي</option><option value="orbit">دوران سينمائي</option></select></div>
+<div><label class="label">مدة المشهد</label><select id="duration"><option value="4">4 ثوانٍ</option><option value="5" selected>5 ثوانٍ</option><option value="8">8 ثوانٍ</option><option value="10">10 ثوانٍ</option></select></div>
+<div><label class="label">سرعة وقوة الحركة</label><select id="intensity"><option value="subtle">هادئة وخفيفة</option><option value="medium" selected>طبيعية ومتوسطة</option><option value="strong">قوية ونشطة</option></select></div>
+</div>
 <div class="action-row">
 <button class="primary generate" id="generateVideoBtn">🎬 تحويل إلى فيديو وتنزيله</button>
 <button class="outline" id="previewMotion">▶ معاينة سريعة</button>
 <button class="outline" id="saveProject">▣ حفظ JSON</button>
 </div>
-<div class="notice" id="engineNotice">الوضع الحالي: محرك التوليد المحلي الفوري. لتوليد فيديو بالذكاء الاصطناعي الحقيقي من الأوامر، اربط مفتاح API من قسم «إعدادات ربط المحرك الخارجي» بالأسفل.</div></section>
+<div class="notice" id="engineNotice">تم تفعيل العرض الكامل للصورة + تحريك الأشخاص تلقائياً. ولتحريك واقعي كامل بالذكاء الاصطناعي (AI)، اربط مفتاح API بالأسفل.</div></section>
 </div>
 
 <section class="panel api-panel" id="apiSection">
 <div class="panel-head">
-<div><h2>إعدادات ربط المحرك الخارجي (Image-to-Video API)</h2><small>اربط المنصة مع fal.ai أو Replicate أو خادم Webhook خاص لتوليد فيديو AI حقيقي</small></div>
+<div><h2>إعدادات ربط المحرك الخارجي (Image-to-Video AI)</h2><small>اربط المنصة مع fal.ai أو Replicate لتحريك الأشخاص والملامح بالذكاء الاصطناعي الحقيقي</small></div>
 <span class="lib-badge" id="apiStatusBadge">غير متصل (يعمل محلياً)</span>
 </div>
 <div class="api-grid">
@@ -98,7 +108,7 @@
 </div>
 <div>
 <label class="label">رابط Proxy اختياري (لتجاوز CORS في المتصفح)</label>
-<input type="text" class="lib-search" id="apiProxy" placeholder="اختياري: https://your-proxy.example.com/api/video">
+<input type="text" class="lib-search" id="apiProxy" placeholder="اختياري: /api/video">
 </div>
 </div>
 <div class="action-row" style="margin-top:12px">
@@ -107,7 +117,7 @@
 <button class="outline small" id="clearApiBtn">إلغاء الربط والعودة للمحلي</button>
 </div>
 <div class="notice" style="margin-top:10px">
-تنبيه أمان: يتم حفظ مفتاح API محلياً في متصفحك فقط (`localStorage`). للاستخدام العام على الإنترنت، يُنصح بتمرير الطلبات عبر خادم وسيط (Proxy / Serverless Function) لحماية مفتاحك وتجنب قيود CORS.
+ملاحظة: محرك المتصفح المحلي يحرّك الأشخاص عبر تشويه شبكي مرن (Mesh/Wave Motion) للرأس والجسم والملابس، بينما المحرك الخارجي (مثل Kling عبر fal.ai) يولّد حركة بشرية ثلاثية الأبعاد كاملة (مشي، كلام، تعبيرات وجه ويدين).
 </div>
 </section>
 
@@ -123,5 +133,5 @@
 </section>
 
 <section class="timeline panel"><div class="panel-head"><div><h2>مسار الحركة</h2><small>تحكم تجريبي في نقاط الحركة الرئيسية</small></div><button class="outline small" id="addKey">＋ إضافة نقطة</button></div><div class="track"><div class="track-label">الصورة / الحركة</div><div class="trackline" id="trackline"><div class="track-progress" id="trackProgress"></div><button class="key" style="left:0%" data-key="0" title="بداية"></button><button class="key" style="left:50%" data-key="50" title="منتصف"></button><button class="key" style="left:100%" data-key="100" title="نهاية"></button></div></div><div class="timeline-ticks"><span>0:00</span><span>منتصف المشهد</span><span id="durationTick">0:05</span></div></section>
-<footer><div>Motion AI Studio <span>·</span> تحويل الصور وأوامر الحركة إلى فيديو</div><div class="features"><span>🔌 ربط API خارجي</span><span>✦ 100 أمر حركة</span><span>▣ 100 فيديو/يوم</span></div></footer>
+<footer><div>Motion AI Studio <span>·</span> عرض كامل للصورة وتحريك الأشخاص</div><div class="features"><span>🖼 عرض كامل</span><span>🚶 تحريك الأشخاص</span><span>🔌 ربط API</span></div></footer>
 </main></div><div id="toast" role="status"></div><script src="app.js"></script></body></html>

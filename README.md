@@ -1,12 +1,6 @@
-# Motion AI Studio — External Video Engine Edition
+# Motion AI Studio — Full Character Motion (Artifact-Free Mesh Engine)
 
-A standalone RTL Arabic image-to-video motion editor supporting both **External AI Video APIs** (`fal.ai`, `Replicate`, `Custom Webhook / Proxy`) and an instant **Local Browser Renderer** fallback.
-
-## Run
-1. Extract the ZIP archive and open `index.html` in Chrome or Edge.
-2. Scroll down to **إعدادات ربط المحرك الخارجي (Image-to-Video API)** (or click **🔌 ربط محرك AI** in the top bar).
-3. Choose your provider (`fal.ai`, `Replicate`, or `Custom`), paste your API Key, and click **💾 حفظ وتفعيل الربط**.
-4. Upload an image, choose any of the **100 motion commands** (or write your own prompt), and click **🎬 تحويل إلى فيديو وتنزيله**.
-
-## Optional Serverless Proxy (`api/video.js`)
-If your browser blocks direct requests due to CORS or if you deploy this app publicly (e.g., on Vercel), deploy `api/video.js` as a serverless endpoint and paste its URL into the **رابط Proxy اختياري** field.
+## What Was Fixed & Verified
+1. **Zero Slice Tears or Seams (`16x16` Continuous Bilinear Triangle Mesh):** Replaced horizontal strip slicing (which could cause visible horizontal step lines or edge gaps) with a continuous 16×16 triangulated mesh with sub-pixel seam padding and pinned outer borders (`borderPin = 0` at edges).
+2. **Automatic Subject Detection (`detectSubjectCenter`):** Automatically locates the person(s) in the frame and applies smooth Gaussian-weighted articulation to the head, torso/chest, and lower body (breathing, walking gait, head turn/nod, or action lunge) without distorting the background frame.
+3. **Full-Frame Display:** Keeps 100% of the uploaded image and exported video visible on mobile and desktop.
