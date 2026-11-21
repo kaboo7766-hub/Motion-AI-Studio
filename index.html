@@ -9,7 +9,7 @@
 <div class="app">
 <aside class="sidebar">
 <div class="brand"><div class="logo">▶</div><div><b>Motion AI</b><small>STUDIO</small></div></div>
-<nav><button class="active" data-page="editor">⌂ <span>محرر الحركة</span></button><button data-page="projects">▣ <span>مشاريعي</span></button><button data-page="presets">✦ <span>قوالب الحركة</span></button><button data-page="settings">⚙ <span>إعدادات API</span></button></nav>
+<nav><button class="active" data-page="editor">⌂ <span>محرر الحركة</span></button><button data-page="projects">▣ <span>مشاريعي</span></button><button data-page="presets">✦ <span>قوالب الحركة</span></button><button data-page="settings">⚙ <span>المحرك المجاني</span></button></nav>
 <div class="side-bottom"><div class="mini-orb">✦</div><b>حوّل أفكارك إلى حركة</b><small>حرّك صورك بالطريقة التي تتخيلها</small></div>
 </aside>
 <main>
@@ -50,7 +50,7 @@
 </div>
 </section>
 
-<section class="controls panel"><div class="panel-head"><div><h2>إعداد الحركة</h2><small>صف حركة الأشخاص والمشهد بالتفصيل</small></div><span class="magic" id="engineModePill">✦ AI READY</span></div>
+<section class="controls panel"><div class="panel-head"><div><h2>إعداد الحركة</h2><small>صف حركة الأشخاص والمشهد بالتفصيل</small></div><span class="magic" id="engineModePill">✦ محرك مجاني محلي</span></div>
 <div class="upload-strip" id="drop"><div class="upload-icon">⇧</div><div><b>ارفع صورتك</b><small>PNG · JPG · WEBP</small></div><button class="outline small" id="uploadBtn">تصفح الملفات</button><input type="file" id="file" accept="image/*" hidden></div>
 <label class="label" for="prompt">وصف الحركة</label><textarea id="prompt" placeholder="مثال: الأشخاص يتحركون للأمام ويبتسمون مع حركة طبيعية للرأس واليدين والملابس..."></textarea>
 <div class="label-row"><span class="label">قوالب سريعة</span><button class="text-btn" id="clearPrompt">مسح النص</button></div><div class="presets" id="presets"><button data-prompt="حركة كاميرا بطيئة تقترب من الشخصية، حركة خفيفة للشعر والملابس، إضاءة سينمائية واقعية.">🎥 سينمائي</button><button data-prompt="الشخص يتحرك للأمام بخطوات طبيعية، تفاعل واقعي للجسم والملابس، والكاميرا تتابعه.">🚶 مشي</button><button data-prompt="الشخص يلتفت تدريجياً ناحية الكاميرا، يرفع رأسه ثم يبتسم، حركة طبيعية وناعمة.">🙂 تعبير</button><button data-prompt="حركة أكشن سريعة: اندفاع للأمام، حركة ديناميكية للجسم، كاميرا تتبع مع تأثير سينمائي.">⚡ أكشن</button><button data-prompt="نسيم خفيف يحرك الشعر والأشجار والملابس، السحب تتحرك ببطء، كاميرا ثابتة.">🍃 طبيعة</button><button data-prompt="ضباب كثيف يتدفق ببطء، إضاءة غامضة، حركة كاميرا زحف سينمائي بطيئة.">🌫️ رعب</button></div>
@@ -101,5 +101,5 @@
 </section>
 
 <section class="timeline panel"><div class="panel-head"><div><h2>مسار الحركة</h2><small>تحكم تجريبي في نقاط الحركة الرئيسية</small></div><button class="outline small" id="addKey">＋ إضافة نقطة</button></div><div class="track"><div class="track-label">الصورة / الحركة</div><div class="trackline" id="trackline"><div class="track-progress" id="trackProgress"></div><button class="key" style="left:0%" data-key="0" title="بداية"></button><button class="key" style="left:50%" data-key="50" title="منتصف"></button><button class="key" style="left:100%" data-key="100" title="نهاية"></button></div></div><div class="timeline-ticks"><span>0:00</span><span>منتصف المشهد</span><span id="durationTick">0:05</span></div></section>
-<footer><div>Motion AI Studio <span>·</span> عرض كامل للصورة وتحريك الأشخاص</div><div class="features"><span>🖼 عرض كامل</span><span>🚶 تحريك الأشخاص</span><span>🔌 ربط API</span></div></footer>
+<footer><div>Motion AI Studio <span>·</span> عرض كامل للصورة وتحريك الأشخاص</div><div class="features"><span>🖼 عرض كامل</span><span>🚶 تحريك الأشخاص</span><span>⚡ محرك محلي مجاني</span></div></footer>
 </main></div><div id="toast" role="status"></div><script src="app.js"></script></body></html>
