@@ -1,7 +1,7 @@
 const $=id=>document.getElementById(id);
 const DAILY_LIMIT=Number.MAX_SAFE_INTEGER;
 const STORAGE_KEY='motion_ai_daily_100_v3';
-const API_CONFIG_KEY='motion_ai_external_api_v1';
+// Free-only build: no external AI provider or paid API is used.
 
 let imageUrl=null,loadedImgEl=null,imageDataUrl=null,playing=false,timer=null,keys=[0,50,100],selectedCommandId=null;
 let generatedVideoUrl=null,isRendering=false;
@@ -183,7 +183,7 @@ function loadApiConfig(){
   }
 }
 
-let apiConfig=loadApiConfig();
+let apiConfig={provider:'local',endpoint:'',apiKey:'',proxy:'',resolution:'1080p',accessCode:''};
 
 function saveApiConfig(){
   try{localStorage.setItem(API_CONFIG_KEY,JSON.stringify(apiConfig));}catch(_){}
@@ -195,28 +195,10 @@ function isExternalApiActive(){
 }
 
 function updateApiUI(){
-  if($('apiProvider'))$('apiProvider').value=apiConfig.provider||'local';
-  if($('apiEndpoint'))$('apiEndpoint').value=apiConfig.endpoint||DEFAULT_ENDPOINTS[apiConfig.provider]||'';
-  if($('apiKey'))$('apiKey').disabled=apiConfig.provider==='fal-proxy';
-  if($('apiAccessCode'))$('apiAccessCode').value=apiConfig.accessCode||'';
-  if($('apiAccessCode'))$('apiAccessCode').disabled=apiConfig.provider!=='fal-proxy';
-  if($('apiProxy'))$('apiProxy').disabled=apiConfig.provider==='fal-proxy';
-  if($('apiKey'))$('apiKey').value=apiConfig.apiKey||'';
-  if($('apiProxy'))$('apiProxy').value=apiConfig.proxy||'';
-
-  const active=isExternalApiActive();
-  const names={local:'محلي مجاني','fal-proxy':'Kling AI احترافي',fal:'fal.ai',replicate:'Replicate',custom:'خادم مخصص'};
-  const pName=names[apiConfig.provider]||'محلي';
-
-  if($('apiStatusBadge'))$('apiStatusBadge').textContent=apiConfig.provider==='fal-proxy'?'تم اختيار AI — يلزم إعداد FAL_KEY و Access Code في Vercel':active?`متصل: ${pName}`:'الوضع المجاني المحلي';
-  if($('renderBadge'))$('renderBadge').textContent=active?`API · ${apiConfig.provider.toUpperCase()}`:'LOCAL ENGINE';
-  if($('engineModePill'))$('engineModePill').textContent=active?`✦ ${pName} API`:'✦ LOCAL AI';
-  if($('engineNotice')){
-    $('engineNotice').textContent=apiConfig.provider==='fal-proxy'
-      ?'وضع AI الاحترافي محدد. أضف FAL_KEY و MOTION_API_ACCESS_CODE في Vercel، ثم أدخل رمز الوصول هنا. قد تُخصم تكلفة لكل عملية توليد.'
-      :active?`متصل حالياً بمحرك (${pName}). سيتم إرسال الصورة إلى مزود AI لتوليد الفيديو.`
-      :'الوضع المجاني المحلي يصنع حركة بصرية بسيطة، وليس تحريكاً بشرياً حقيقياً.';
-  }
+  if($('renderBadge'))$('renderBadge').textContent='FREE LOCAL ENGINE';
+  if($('engineModePill'))$('engineModePill').textContent='✦ محرك مجاني محلي';
+  if($('apiStatusBadge'))$('apiStatusBadge').textContent='يعمل محلياً — بدون API';
+  if($('engineNotice'))$('engineNotice').textContent='تتم معالجة الصورة داخل المتصفح دون إرسالها لأي خدمة خارجية أو استخدام رصيد مدفوع.';
 }
 
 function loadDailyState(){
@@ -284,191 +266,6 @@ function getOptimizedImageDataUrl(){
   c.height=Math.round(srcH*scale);
   c.getContext('2d').drawImage(loadedImgEl,0,0,c.width,c.height);
   return c.toDataURL('image/jpeg',0.9);
-}
-
-async function generateViaFalProxy(opts){
-  const imgData=getOptimizedImageDataUrl();
-  if(!imgData)throw new Error('لا توجد صورة جاهزة للإرسال');
-  const model=apiConfig.endpoint||'kling/v4/image-to-video';
-  if(typeof opts.onProgress==='function')opts.onProgress(8,'جاري إرسال الصورة بأمان إلى محرك Kling...');
-  const submitRes=await fetch('/api/motion',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-motion-access':apiConfig.accessCode||''},
-    body:JSON.stringify({
-      action:'submit',
-      model,
-      imageDataUrl:imgData,
-      prompt:opts.prompt||'Natural realistic full-body human movement, preserve the character identity and clothing.',
-      duration:Math.max(3,Math.min(30,Number(opts.duration)||5)),
-      resolution:'1080p'
-    })
-  });
-  const submitData=await submitRes.json().catch(()=>({}));
-  if(!submitRes.ok)throw new Error(submitData.error||'تعذر بدء طلب AI الاحترافي');
-  if(!submitData.request_id)throw new Error('لم يرجع مزود AI رقم الطلب');
-  for(let attempt=1;attempt<=180;attempt++){
-    await new Promise(resolve=>setTimeout(resolve,4000));
-    const statusRes=await fetch('/api/motion?action=status&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id),{headers:{'x-motion-access':apiConfig.accessCode||''}});
-    const statusData=await statusRes.json().catch(()=>({}));
-    if(!statusRes.ok)throw new Error(statusData.error||'تعذر متابعة طلب AI');
-    const state=String(statusData.status||'').toUpperCase();
-    if(typeof opts.onProgress==='function')opts.onProgress(Math.min(94,12+Math.round(attempt/180*82)),state==='IN_QUEUE'?'طلبك في قائمة انتظار Kling...':'جاري إنشاء حركة الشخصية بالذكاء الاصطناعي...');
-    if(state==='FAILED'||state==='CANCELLED')throw new Error(statusData.error||'فشل توليد الفيديو من مزود AI');
-    if(state==='COMPLETED'){
-      const resultRes=await fetch('/api/motion?action=result&model='+encodeURIComponent(model)+'&request_id='+encodeURIComponent(submitData.request_id),{headers:{'x-motion-access':apiConfig.accessCode||''}});
-      const resultData=await resultRes.json().catch(()=>({}));
-      if(!resultRes.ok)throw new Error(resultData.error||'تعذر استلام الفيديو النهائي');
-      const videoUrl=resultData.video?.url||resultData.data?.video?.url;
-      if(!videoUrl)throw new Error('اكتمل الطلب لكن رابط الفيديو غير موجود');
-      if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل توليد الفيديو البشري الاحترافي!');
-      return {url:videoUrl,ext:'mp4',duration:Number(opts.duration)||5,source:'Kling AI via fal.ai'};
-    }
-  }
-  throw new Error('انتهت مهلة انتظار محرك AI؛ يمكنك إعادة المحاولة لاحقاً');
-}
-
-async function generateViaExternalApi(opts){
-  const imgData=getOptimizedImageDataUrl();
-  if(!imgData)throw new Error('لا توجد صورة محملة لإرسالها للمحرك الخارجي');
-
-  const promptFull=`Full frame shot, realistic human body and facial motion, natural people movement: ${opts.prompt||'People moving naturally, subtle breathing, head turn and natural body motion'}, camera motion: ${opts.camera}, intensity: ${opts.intensity}`;
-  const durationStr=String(Number(opts.duration)<=5?5:10);
-
-  if(typeof opts.onProgress==='function')opts.onProgress(15,'جاري إرسال الصورة الكاملة وأمر تحريك الأشخاص إلى المحرك الخارجي...');
-
-  if(apiConfig.proxy){
-    const res=await fetch(apiConfig.proxy,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        ...(apiConfig.apiKey?{'Authorization':`Bearer ${apiConfig.apiKey}`}:{})
-      },
-      body:JSON.stringify({
-        provider:apiConfig.provider,
-        endpoint:apiConfig.endpoint,
-        image_url:imgData,
-        prompt:promptFull,
-        duration:Number(opts.duration)||5,
-        camera:opts.camera,
-        intensity:opts.intensity
-      })
-    });
-    if(!res.ok)throw new Error(`خطأ من الخادم الوسيط (${res.status})`);
-    const data=await res.json();
-    const videoUrl=data.video_url||data.video?.url||data.output?.[0]||data.output;
-    if(!videoUrl)throw new Error('لم يُرجع الخادم رابط فيديو صالح');
-    if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل توليد الفيديو من الخادم!');
-    return {url:videoUrl,ext:'mp4',duration:Number(opts.duration)||5,source:'External Proxy API'};
-  }
-
-  if(apiConfig.provider==='fal'){
-    let endpoint=(apiConfig.endpoint||DEFAULT_ENDPOINTS.fal).trim();
-    if(!endpoint.startsWith('http'))endpoint='https://queue.fal.run/'+endpoint.replace(/^\/+/,'');
-
-    const submitRes=await fetch(endpoint,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':`Key ${apiConfig.apiKey}`
-      },
-      body:JSON.stringify({
-        prompt:promptFull,
-        image_url:imgData,
-        duration:durationStr
-      })
-    });
-    if(!submitRes.ok){
-      const errTxt=await submitRes.text().catch(()=>'');
-      throw new Error(`فشل الاتصال بـ fal.ai (${submitRes.status}): ${errTxt.slice(0,120)}`);
-    }
-    const job=await submitRes.json();
-    if(job.video?.url){
-      return {url:job.video.url,ext:'mp4',duration:Number(durationStr),source:'fal.ai'};
-    }
-    const statusUrl=job.status_url;
-    const responseUrl=job.response_url;
-    if(!statusUrl||!responseUrl)throw new Error('استجابة غير متوقعة من fal.ai');
-
-    for(let attempt=1;attempt<=60;attempt++){
-      await new Promise(r=>setTimeout(r,3000));
-      const pct=Math.min(92,15+Math.round((attempt/60)*77));
-      if(typeof opts.onProgress==='function')opts.onProgress(pct,`جاري تحريك الأشخاص وتوليد الفيديو على fal.ai... (${attempt*3}ث)`);
-
-      const stRes=await fetch(statusUrl,{headers:{'Authorization':`Key ${apiConfig.apiKey}`}});
-      if(!stRes.ok)continue;
-      const st=await stRes.json();
-      if(st.status==='COMPLETED'){
-        const finalRes=await fetch(responseUrl,{headers:{'Authorization':`Key ${apiConfig.apiKey}`}});
-        const finalData=await finalRes.json();
-        const vUrl=finalData.video?.url||finalData.data?.video?.url;
-        if(!vUrl)throw new Error('اكتمل الطلب لكن لم يُعثر على رابط الفيديو');
-        if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل توليد الفيديو من fal.ai!');
-        return {url:vUrl,ext:'mp4',duration:Number(durationStr),source:'fal.ai'};
-      }
-      if(st.status==='FAILED')throw new Error('فشل توليد الفيديو على fal.ai');
-    }
-    throw new Error('انتهت مهلة الانتظار من fal.ai');
-  }
-
-  if(apiConfig.provider==='replicate'){
-    const endpoint=(apiConfig.endpoint||DEFAULT_ENDPOINTS.replicate).trim();
-    const createRes=await fetch(endpoint,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':`Bearer ${apiConfig.apiKey}`
-      },
-      body:JSON.stringify({
-        input:{
-          prompt:promptFull,
-          image:imgData,
-          first_frame_image:imgData
-        }
-      })
-    });
-    if(!createRes.ok)throw new Error(`فشل الاتصال بـ Replicate (${createRes.status})`);
-    const pred=await createRes.json();
-    const getUrl=pred.urls?.get;
-    if(!getUrl)throw new Error('لم يُرجع Replicate رابط متابعة الطلب');
-
-    for(let attempt=1;attempt<=60;attempt++){
-      await new Promise(r=>setTimeout(r,3000));
-      const pct=Math.min(92,15+Math.round((attempt/60)*77));
-      if(typeof opts.onProgress==='function')opts.onProgress(pct,`جاري التوليد على Replicate... (${attempt*3}ث)`);
-      const pollRes=await fetch(getUrl,{headers:{'Authorization':`Bearer ${apiConfig.apiKey}`}});
-      const pData=await pollRes.json();
-      if(pData.status==='succeeded'){
-        const out=Array.isArray(pData.output)?pData.output[0]:pData.output;
-        if(!out)throw new Error('لم يُرجع Replicate رابط فيديو');
-        if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل التوليد من Replicate!');
-        return {url:out,ext:'mp4',duration:Number(opts.duration)||5,source:'Replicate'};
-      }
-      if(pData.status==='failed'||pData.status==='canceled')throw new Error('فشل التوليد في Replicate');
-    }
-    throw new Error('انتهت مهلة الانتظار من Replicate');
-  }
-
-  const customUrl=(apiConfig.endpoint||'').trim();
-  if(!customUrl)throw new Error('يرجى إدخال رابط Endpoint صحيح');
-  const customRes=await fetch(customUrl,{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      ...(apiConfig.apiKey?{'Authorization':`Bearer ${apiConfig.apiKey}`}:{})
-    },
-    body:JSON.stringify({
-      image:imgData,
-      prompt:promptFull,
-      duration:Number(opts.duration)||5,
-      camera:opts.camera
-    })
-  });
-  if(!customRes.ok)throw new Error(`خطأ من الخادم المخصص (${customRes.status})`);
-  const cData=await customRes.json();
-  const cVideo=cData.video_url||cData.video?.url||cData.url||cData.output;
-  if(!cVideo)throw new Error('الاستجابة لا تحتوي على رابط فيديو');
-  if(typeof opts.onProgress==='function')opts.onProgress(100,'اكتمل التوليد!');
-  return {url:cVideo,ext:'mp4',duration:Number(opts.duration)||5,source:'Custom API'};
 }
 
 // Artifact-Free Full-Frame Character & Scene Animator (Continuous 2D Mesh Grid Deformation)
@@ -540,7 +337,7 @@ function drawTexturedTriangle(ctx,img,x0,y0,x1,y1,x2,y2,u0,v0,u1,v1,u2,v2){
 
 async function renderRealVideoLocal(opts){
   if(!loadedImgEl)throw new Error('NO_IMAGE');
-  if(typeof MediaRecorder==='undefined')throw new Error('NO_RECORDER');
+  if(typeof MediaRecorder==='undefined')throw new Error('هذا المتصفح لا يدعم تصدير الفيديو. افتح البرنامج باستخدام أحدث إصدار من Chrome.');
 
   const durationSec=Math.max(2,Math.min(12,Number(opts.duration)||5));
   const camera=opts.camera||'zoom';
@@ -834,17 +631,16 @@ async function triggerVideoConversion(customOpts){
 
   try{
     let res;
-    if(apiConfig.provider==='fal-proxy'){
-      res=await generateViaFalProxy(reqOpts);
-    }else if(isExternalApiActive()){
-      res=await generateViaExternalApi(reqOpts);
-    }else{
-      res=await renderRealVideoLocal(reqOpts);
-    }
+    res=await renderRealVideoLocal(reqOpts);
 
     showRenderedVideo(res,title);
 
-    if(dailyState.producedCount<DAILY_LIMIT){
+    if(customOpts?.id){
+      const queuedItem=dailyState.queue.find(item=>item.id===customOpts.id);
+      if(queuedItem)queuedItem.status='done';
+  }
+
+    if(!customOpts?.id&&dailyState.producedCount<DAILY_LIMIT){
       dailyState.producedCount++;
       dailyState.queue.push({
         id:'vid-'+Date.now(),
@@ -860,11 +656,11 @@ async function triggerVideoConversion(customOpts){
       renderQuotaAndBatch();
     }
 
-    toast('تم إنشاء الحركة مجاناً. يمكنك معاينتها أو تنزيلها بشكل مستقل.');
+    toast('تم إنشاء الفيديو محلياً مجاناً. يمكنك معاينته أو تنزيله بشكل مستقل.');
   }catch(err){
     console.error(err);
     const reason=err?.message||'خطأ غير معروف';
-    toast(`تعذّر التوليد (${reason})`);
+    toast(`تعذّر إنشاء الفيديو: ${reason}`);
   }finally{
     isRendering=false;
     if(genBtn){genBtn.disabled=false;genBtn.textContent='🎬 إنشاء الحركة مجاناً';}
@@ -1003,7 +799,7 @@ $('file').addEventListener('change',e=>setImage(e.target.files[0]));
 $('uploadBtn').onclick=()=> $('file').click();
 $('chooseBtn').onclick=()=> $('file').click();
 $('backToImageBtn')?.addEventListener('click',switchToImageView);
-$('openApiConfigBtn')?.addEventListener('click',()=>$('apiSection')?.scrollIntoView({behavior:'smooth'}));
+$('localEngineInfoBtn')?.addEventListener('click',()=>toast('المحرك مجاني ويعمل داخل المتصفح؛ لا توجد خدمات مدفوعة متصلة.'));
 
 $('apiProvider')?.addEventListener('change',e=>{
   const p=e.target.value;
@@ -1145,37 +941,14 @@ $('fillFromCommandsBtn')?.addEventListener('click',()=>{
 });
 
 $('runBatchBtn')?.addEventListener('click',()=>{
-  const remainingQuota=DAILY_LIMIT-dailyState.producedCount;
-  if(remainingQuota<=0)return toast('اكتملت حصة 100 فيديو لهذا اليوم');
-  let processed=0;
-  for(const item of dailyState.queue){
-    if(item.status!=='done'&&processed<10&&dailyState.producedCount<DAILY_LIMIT){
-      item.status='done';
-      dailyState.producedCount++;
-      processed++;
-    }
-  }
-  if(!processed){
-    const activeCmd=COMMANDS_100.find(c=>c.id===selectedCommandId);
-    const toCreate=Math.min(10,remainingQuota);
-    for(let i=0;i<toCreate;i++){
-      dailyState.queue.push({
-        id:'vid-'+Date.now()+'-'+i,
-        commandId:activeCmd?activeCmd.id:null,
-        title:activeCmd?`${activeCmd.code} ${activeCmd.title} (${i+1})`:`فيديو يومي #${dailyState.producedCount+1}`,
-        prompt:($('prompt').value||'').trim()||'حركة سينمائية هادئة',
-        camera:$('camera').value,
-        duration:Number($('duration').value),
-        intensity:$('intensity').value,
-        status:'done'
-      });
-      dailyState.producedCount++;
-      processed++;
-    }
-  }
-  saveDailyState();
-  renderQuotaAndBatch();
-  toast(`تم تجهيز ${processed} فيديو ضمن حصة الـ 100 فيديو اليومية`);
+  const item=dailyState.queue.find(q=>q.status!=='done');
+  if(!item)return toast('لا توجد مشاهد معلقة. أضف مشهداً إلى القائمة أولاً.');
+  if(!imageUrl||!loadedImgEl)return toast('ارفع صورة أولاً قبل توليد المشاهد من القائمة.');
+  $('prompt').value=item.prompt||'';
+  if(item.camera)$('camera').value=item.camera;
+  if(item.duration)$('duration').value=String(item.duration);
+  if(item.intensity)$('intensity').value=item.intensity;
+  triggerVideoConversion(item);
 });
 
 $('resetQuotaBtn')?.addEventListener('click',()=>{
