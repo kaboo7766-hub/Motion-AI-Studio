@@ -9,16 +9,26 @@
 <div class="app">
 <aside class="sidebar">
 <div class="brand"><div class="logo">▶</div><div><b>Motion AI</b><small>STUDIO</small></div></div>
-<nav><button class="active" data-page="editor">⌂ <span>محرر الحركة</span></button><button data-page="projects">▣ <span>مشاريعي</span></button><button data-page="presets">✦ <span>قوالب الحركة</span></button><button data-page="settings">⚙ <span>الإعدادات</span></button></nav>
+<nav><button class="active" data-page="editor">⌂ <span>محرر الحركة</span></button><button data-page="projects">▣ <span>مشاريعي</span></button><button data-page="presets">✦ <span>قوالب الحركة</span></button><button data-page="settings">⚙ <span>إعدادات API</span></button></nav>
 <div class="side-bottom"><div class="mini-orb">✦</div><b>حوّل أفكارك إلى حركة</b><small>حرّك صورك بالطريقة التي تتخيلها</small></div>
 </aside>
 <main>
-<header class="topbar"><div class="crumb">مساحة العمل <span>/</span> <b>محرر الحركة</b></div><div class="top-actions"><button class="ghost" id="lang">EN</button><button class="ghost">؟</button><div class="avatar">T</div></div></header>
-<section class="hero"><div class="hero-text"><div class="eyebrow">✦ محرّك الإبداع</div><h1>خلّي صورك <span>تتحرك</span></h1><p>اكتب الحركة اللي في خيالك، وابدأ في تحويل صورتك إلى مشهد.</p></div><div class="hero-art"><div class="orbit o1"></div><div class="orbit o2"></div><div class="play-big">▶</div><span class="spark s1">✦</span><span class="spark s2">✧</span></div></section>
+<header class="topbar"><div class="crumb">مساحة العمل <span>/</span> <b>محرر الحركة</b></div><div class="top-actions"><button class="outline small" id="openApiConfigBtn">🔌 ربط محرك AI</button><button class="ghost" id="lang">EN</button><button class="ghost">؟</button><div class="avatar">T</div></div></header>
+<section class="hero"><div class="hero-text"><div class="eyebrow">✦ محرّك الإبداع</div><h1>خلّي صورك <span>تتحرك</span></h1><p>اكتب الحركة اللي في خيالك، وابدأ في تحويل صورتك إلى فيديو حقيقي.</p></div><div class="hero-art"><div class="orbit o1"></div><div class="orbit o2"></div><div class="play-big">▶</div><span class="spark s1">✦</span><span class="spark s2">✧</span></div></section>
 <div class="workspace">
-<section class="preview-card panel"><div class="panel-head"><div><h2>معاينة الحركة</h2><small>استعرض تأثير الحركة على الصورة</small></div><span class="quality">PREVIEW</span></div>
-<div class="preview-stage" id="stage"><div class="empty" id="empty"><div class="upload-icon">▧</div><b>ارفع صورة للبدء</b><small>اختر صورة من جهازك وشاهدها داخل المعاينة</small><button class="primary small" id="chooseBtn">＋ اختيار صورة</button></div><img id="photo" alt="معاينة الصورة" hidden><div class="stage-overlay" id="stageControls" hidden><button id="playBtn">▶</button><span id="timeLabel">00:00 / 00:08</span><input type="range" min="0" max="100" value="0" id="scrub"><button id="fullscreen">⛶</button></div></div>
-<div class="preview-foot"><span id="status">جاهز لاستقبال الصورة</span><button class="outline" id="resetMotion">↻ إعادة الحركة</button></div>
+<section class="preview-card panel"><div class="panel-head"><div><h2>معاينة وتحويل الفيديو</h2><small>استعرض تأثير الحركة وحوّل الصورة إلى ملف فيديو</small></div><span class="quality" id="renderBadge">LOCAL ENGINE</span></div>
+<div class="preview-stage" id="stage"><div class="empty" id="empty"><div class="upload-icon">▧</div><b>ارفع صورة للبدء</b><small>اختر صورة من جهازك وشاهدها داخل المعاينة</small><button class="primary small" id="chooseBtn">＋ اختيار صورة</button></div><img id="photo" alt="معاينة الصورة" hidden><video id="resultVideo" controls playsinline crossorigin="anonymous" hidden></video><div class="stage-overlay" id="stageControls" hidden><button id="playBtn">▶</button><span id="timeLabel">00:00 / 00:08</span><input type="range" min="0" max="100" value="0" id="scrub"><button id="fullscreen">⛶</button></div></div>
+<div class="preview-foot"><span id="status">جاهز لاستقبال الصورة</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="outline" id="backToImageBtn" hidden>🖼 عرض الصورة</button><button class="outline" id="resetMotion">↻ إعادة الحركة</button></div></div>
+
+<div class="render-box" id="renderBox" hidden>
+<div class="render-top"><span id="renderStatusText">جاري تحويل الصورة وأمر الحركة إلى فيديو...</span><b id="renderPercent">0%</b></div>
+<div class="quota-meter"><div class="quota-fill" id="renderFill"></div></div>
+</div>
+
+<div class="video-ready-bar" id="videoReadyBar" hidden>
+<div><b>تم إنشاء الفيديو بنجاح!</b><small id="videoMetaText">جاهز للتشغيل والتنزيل</small></div>
+<a class="primary small download-video-btn" id="downloadVideoLink" download="motion-video.mp4" target="_blank" rel="noopener">⬇ تنزيل الفيديو</a>
+</div>
 
 <div class="quota-bar" id="quotaBar">
 <div class="quota-top"><span>إنتاج اليوم (حد 100 فيديو / يوم)</span><b id="quotaCount">0 / 100 فيديو</b></div>
@@ -35,9 +45,9 @@
 </div>
 </section>
 
-<section class="controls panel"><div class="panel-head"><div><h2>إعداد الحركة</h2><small>صف الحركة المطلوبة بالتفصيل</small></div><span class="magic">✦ AI</span></div>
+<section class="controls panel"><div class="panel-head"><div><h2>إعداد الحركة</h2><small>صف الحركة المطلوبة بالتفصيل</small></div><span class="magic" id="engineModePill">✦ AI READY</span></div>
 <div class="upload-strip" id="drop"><div class="upload-icon">⇧</div><div><b>ارفع صورتك</b><small>PNG · JPG · WEBP</small></div><button class="outline small" id="uploadBtn">تصفح الملفات</button><input type="file" id="file" accept="image/*" hidden></div>
-<label class="label" for="prompt">وصف الحركة</label><textarea id="prompt" placeholder="مثال: الشخص يلتفت ناحية الكاميرا، ثم يبتسم بهدوء، مع حركة طبيعية للشعر وإضاءة سينمائية..."></textarea>
+<label class="label" for="prompt">وصف الحركة</label><textarea id="prompt" placeholder="مثال: حركة كاميرا تقترب ببطء، مع ضباب خفيف وإضاءة سينمائية..."></textarea>
 <div class="label-row"><span class="label">قوالب سريعة</span><button class="text-btn" id="clearPrompt">مسح النص</button></div><div class="presets" id="presets"><button data-prompt="حركة كاميرا بطيئة تقترب من الشخصية، حركة خفيفة للشعر والملابس، إضاءة سينمائية واقعية.">🎥 سينمائي</button><button data-prompt="الشخص يتحرك للأمام بخطوات طبيعية، تفاعل واقعي للجسم والملابس، والكاميرا تتابعه.">🚶 مشي</button><button data-prompt="الشخص يلتفت تدريجياً ناحية الكاميرا، يرفع رأسه ثم يبتسم، حركة طبيعية وناعمة.">🙂 تعبير</button><button data-prompt="حركة أكشن سريعة: اندفاع للأمام، حركة ديناميكية للجسم، كاميرا تتبع مع تأثير سينمائي.">⚡ أكشن</button><button data-prompt="نسيم خفيف يحرك الشعر والأشجار والملابس، السحب تتحرك ببطء، كاميرا ثابتة.">🍃 طبيعة</button><button data-prompt="ضباب كثيف يتدفق ببطء، إضاءة غامضة، حركة كاميرا زحف سينمائي بطيئة.">🌫️ رعب</button></div>
 
 <div class="motion-library" id="motionLibrary">
@@ -54,13 +64,56 @@
 <div class="commands-list" id="commandsList"></div>
 </div>
 
-<div class="settings-grid"><div><label class="label">مدة المشهد</label><select id="duration"><option value="4">4 ثوانٍ</option><option value="6">6 ثوانٍ</option><option value="8" selected>8 ثوانٍ</option><option value="10">10 ثوانٍ</option><option value="12">12 ثانية</option></select></div><div><label class="label">حركة الكاميرا</label><select id="camera"><option value="none">ثابتة</option><option value="zoom">تقريب بطيء</option><option value="zoomout">ابتعاد بطيء</option><option value="pan">تحريك أفقي</option><option value="tilt">ميل رأسي</option><option value="orbit">دوران سينمائي (تقريبي)</option></select></div><div><label class="label">سرعة الحركة</label><select id="speed"><option value="slow">هادئة</option><option value="normal" selected>طبيعية</option><option value="fast">سريعة</option></select></div><div><label class="label">قوة الحركة</label><select id="intensity"><option value="subtle">خفيفة</option><option value="medium" selected>متوسطة</option><option value="strong">قوية</option></select></div></div>
-<div class="action-row"><button class="primary generate" id="previewMotion">▶ تشغيل معاينة الحركة</button><button class="outline" id="saveProject">▣ حفظ المشروع</button></div><div class="notice">المعاينة الحالية تستخدم تحريك بصري داخل المتصفح، ويوفّر نظام الـ 100 فيديو اليومي تتبع الحصة والدُفعات محلياً. إنشاء فيديو AI حقيقي وتصديره يتطلب توصيل محرك توليد فيديو خارجي.</div></section>
+<div class="settings-grid"><div><label class="label">مدة المشهد</label><select id="duration"><option value="4">4 ثوانٍ</option><option value="5" selected>5 ثوانٍ</option><option value="8">8 ثوانٍ</option><option value="10">10 ثوانٍ</option></select></div><div><label class="label">حركة الكاميرا</label><select id="camera"><option value="none">ثابتة</option><option value="zoom" selected>تقريب بطيء</option><option value="zoomout">ابتعاد بطيء</option><option value="pan">تحريك أفقي</option><option value="tilt">ميل رأسي</option><option value="orbit">دوران سينمائي (تقريبي)</option></select></div><div><label class="label">سرعة الحركة</label><select id="speed"><option value="slow">هادئة</option><option value="normal" selected>طبيعية</option><option value="fast">سريعة</option></select></div><div><label class="label">قوة الحركة</label><select id="intensity"><option value="subtle">خفيفة</option><option value="medium" selected>متوسطة</option><option value="strong">قوية</option></select></div></div>
+<div class="action-row">
+<button class="primary generate" id="generateVideoBtn">🎬 تحويل إلى فيديو وتنزيله</button>
+<button class="outline" id="previewMotion">▶ معاينة سريعة</button>
+<button class="outline" id="saveProject">▣ حفظ JSON</button>
 </div>
+<div class="notice" id="engineNotice">الوضع الحالي: محرك التوليد المحلي الفوري. لتوليد فيديو بالذكاء الاصطناعي الحقيقي من الأوامر، اربط مفتاح API من قسم «إعدادات ربط المحرك الخارجي» بالأسفل.</div></section>
+</div>
+
+<section class="panel api-panel" id="apiSection">
+<div class="panel-head">
+<div><h2>إعدادات ربط المحرك الخارجي (Image-to-Video API)</h2><small>اربط المنصة مع fal.ai أو Replicate أو خادم Webhook خاص لتوليد فيديو AI حقيقي</small></div>
+<span class="lib-badge" id="apiStatusBadge">غير متصل (يعمل محلياً)</span>
+</div>
+<div class="api-grid">
+<div>
+<label class="label">مزود الخدمة (Provider)</label>
+<select id="apiProvider">
+<option value="local">محرك المتصفح المحلي (بدون API)</option>
+<option value="fal">fal.ai (Kling / Minimax / Luma)</option>
+<option value="replicate">Replicate API (Predictions)</option>
+<option value="custom">خادم مخصص / Webhook (POST JSON)</option>
+</select>
+</div>
+<div>
+<label class="label">اسم الموديل / رابط Endpoint</label>
+<input type="text" class="lib-search" id="apiEndpoint" placeholder="مثال: fal-ai/kling-video/v1.6/standard/image-to-video">
+</div>
+<div>
+<label class="label">مفتاح API (API Key / Token)</label>
+<input type="password" class="lib-search" id="apiKey" placeholder="أدخل مفتاح API الخاص بك...">
+</div>
+<div>
+<label class="label">رابط Proxy اختياري (لتجاوز CORS في المتصفح)</label>
+<input type="text" class="lib-search" id="apiProxy" placeholder="اختياري: https://your-proxy.example.com/api/video">
+</div>
+</div>
+<div class="action-row" style="margin-top:12px">
+<button class="primary small" id="saveApiBtn">💾 حفظ وتفعيل الربط</button>
+<button class="outline small" id="testApiBtn">🔌 اختبار الاتصال</button>
+<button class="outline small" id="clearApiBtn">إلغاء الربط والعودة للمحلي</button>
+</div>
+<div class="notice" style="margin-top:10px">
+تنبيه أمان: يتم حفظ مفتاح API محلياً في متصفحك فقط (`localStorage`). للاستخدام العام على الإنترنت، يُنصح بتمرير الطلبات عبر خادم وسيط (Proxy / Serverless Function) لحماية مفتاحك وتجنب قيود CORS.
+</div>
+</section>
 
 <section class="panel batch-panel" id="batchSection">
 <div class="panel-head">
-<div><h2>سجل إنتاج 100 فيديو اليوم</h2><small>إدارة قائمة الانتظار والدفعات اليومية وحفظ المشاريع</small></div>
+<div><h2>سجل إنتاج 100 فيديو اليوم</h2><small>إدارة قائمة الانتظار وتحويل أي مشهد إلى فيديو مباشر</small></div>
 <div class="batch-summary">
 <span id="batchStats">في الانتظار: 0 · مكتمل اليوم: 0</span>
 <button class="outline small" id="exportBatchBtn">تصدير سجل اليوم JSON</button>
@@ -69,6 +122,6 @@
 <div class="batch-list" id="batchList"></div>
 </section>
 
-<section class="timeline panel"><div class="panel-head"><div><h2>مسار الحركة</h2><small>تحكم تجريبي في نقاط الحركة الرئيسية</small></div><button class="outline small" id="addKey">＋ إضافة نقطة</button></div><div class="track"><div class="track-label">الصورة / الحركة</div><div class="trackline" id="trackline"><div class="track-progress" id="trackProgress"></div><button class="key" style="left:0%" data-key="0" title="بداية"></button><button class="key" style="left:50%" data-key="50" title="منتصف"></button><button class="key" style="left:100%" data-key="100" title="نهاية"></button></div></div><div class="timeline-ticks"><span>0:00</span><span>منتصف المشهد</span><span id="durationTick">0:08</span></div></section>
-<footer><div>Motion AI Studio <span>·</span> مساحة إبداعية لتحريك الصور</div><div class="features"><span>✦ 100 أمر حركة</span><span>▣ 100 فيديو/يوم</span><span>⌁ حفظ محلي</span></div></footer>
+<section class="timeline panel"><div class="panel-head"><div><h2>مسار الحركة</h2><small>تحكم تجريبي في نقاط الحركة الرئيسية</small></div><button class="outline small" id="addKey">＋ إضافة نقطة</button></div><div class="track"><div class="track-label">الصورة / الحركة</div><div class="trackline" id="trackline"><div class="track-progress" id="trackProgress"></div><button class="key" style="left:0%" data-key="0" title="بداية"></button><button class="key" style="left:50%" data-key="50" title="منتصف"></button><button class="key" style="left:100%" data-key="100" title="نهاية"></button></div></div><div class="timeline-ticks"><span>0:00</span><span>منتصف المشهد</span><span id="durationTick">0:05</span></div></section>
+<footer><div>Motion AI Studio <span>·</span> تحويل الصور وأوامر الحركة إلى فيديو</div><div class="features"><span>🔌 ربط API خارجي</span><span>✦ 100 أمر حركة</span><span>▣ 100 فيديو/يوم</span></div></footer>
 </main></div><div id="toast" role="status"></div><script src="app.js"></script></body></html>
