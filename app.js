@@ -5,6 +5,7 @@ const STORAGE_KEY='motion_ai_daily_100_v3';
 
 let imageUrl=null,loadedImgEl=null,imageDataUrl=null,playing=false,timer=null,keys=[0,50,100],selectedCommandId=null;
 let generatedVideoUrl=null,isRendering=false;
+let poseLandmarks=null,poseLandmarker=null,poseLoadPromise=null;
 
 const CATEGORIES=[
   'الحركة السينمائية',
@@ -313,6 +314,34 @@ function drawTexturedTriangle(ctx,img,x0,y0,x1,y1,x2,y2,u0,v0,u1,v1,u2,v2){
   ctx.restore();
 }
 
+
+async function ensurePoseLandmarker(){
+  if(poseLandmarker)return poseLandmarker;
+  if(poseLoadPromise)return poseLoadPromise;
+  poseLoadPromise=(async()=>{
+    const vision=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm');
+    const fileset=await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+    poseLandmarker=await vision.PoseLandmarker.createFromOptions(fileset,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'CPU'},runningMode:'IMAGE',numPoses:1,minPoseDetectionConfidence:0.35,minPosePresenceConfidence:0.35,minTrackingConfidence:0.35});
+    return poseLandmarker;
+  })();
+  try{return await poseLoadPromise;}catch(err){poseLoadPromise=null;throw err;}
+}
+async function analyzeCharacterPose(){
+  if(!loadedImgEl)return toast('ارفع صورة الشخصية أولاً');
+  const btn=$('analyzePoseBtn'),status=$('poseStatus');
+  if(btn){btn.disabled=true;btn.textContent='⏳ جاري تحليل المفاصل...';}
+  if(status)status.textContent='تحميل نموذج تحليل الجسم المجاني...';
+  try{
+    const detector=await ensurePoseLandmarker(),result=detector.detect(loadedImgEl);
+    poseLandmarks=result.landmarks?.[0]||null;
+    if(!poseLandmarks||poseLandmarks.length<33)throw new Error('لم يتم العثور على جسم واضح. استخدم صورة يظهر فيها الجسم بالكامل.');
+    if(status)status.textContent='✓ تم تحديد 33 نقطة للجسم — جاهز للتحريك';
+    toast('تم تحليل مفاصل الشخصية بنجاح');
+  }catch(err){poseLandmarks=null;if(status)status.textContent=err.message||'تعذر تحليل الصورة';toast(err.message||'تعذر تحميل نموذج التحليل');}
+  finally{if(btn){btn.disabled=false;btn.textContent='◎ إعادة تحليل المفاصل';}}
+}
+$('analyzePoseBtn')?.addEventListener('click',analyzeCharacterPose);
+
 async function renderRealVideoLocal(opts){
   if(!loadedImgEl)throw new Error('NO_IMAGE');
   if(typeof MediaRecorder==='undefined')throw new Error('هذا المتصفح لا يدعم تصدير الفيديو. افتح البرنامج باستخدام أحدث إصدار من Chrome.');
@@ -337,6 +366,9 @@ async function renderRealVideoLocal(opts){
   sCtx.drawImage(loadedImgEl,0,0,W,H);
 
   const subject=detectSubjectCenter(srcCanvas,W,H);
+  const rigAction=opts.rigAction||$('rigAction')?.value||'idle';
+  const rigStrength=Number($('rigStrength')?.value||1);
+  const joints=poseLandmarks?.map(p=>({x:p.x*W,y:p.y*H,visibility:p.visibility??1}))||null;
 
   const canvas=document.createElement('canvas');
   canvas.width=W;
@@ -359,8 +391,8 @@ async function renderRealVideoLocal(opts){
   recorder.ondataavailable=e=>{if(e.data&&e.data.size>0)chunks.push(e.data);};
 
   const totalFrames=Math.round(durationSec*fps);
-  const cols=16;
-  const rows=16;
+  const cols=32;
+  const rows=32;
 
   return new Promise((resolve,reject)=>{
     recorder.onerror=err=>reject(err);
@@ -467,6 +499,20 @@ async function renderRealVideoLocal(opts){
               offX+=Math.sin(rawT*Math.PI*2+v*2.5)*W*0.005*intensityMul*wLower;
             }
 
+            if(joints){
+              const gait=rawT*Math.PI*2*(rigAction==='run'?3.2:rigAction==='walk'?2.1:1.35),amp=rigStrength*intensityMul;
+              const jointMoves=[[0,Math.sin(gait+0.2)*0.010,Math.sin(gait)*0.008,0.075],[11,Math.sin(gait)*0.018,Math.cos(gait)*0.012,0.055],[12,-Math.sin(gait)*0.018,Math.cos(gait)*0.012,0.055],[13,Math.sin(gait+1)*0.030,Math.cos(gait+1)*0.020,0.040],[14,-Math.sin(gait+1)*0.030,Math.cos(gait+1)*0.020,0.040],[15,Math.sin(gait+1.5)*0.042,Math.cos(gait+1.5)*0.026,0.032],[16,-Math.sin(gait+1.5)*0.042,Math.cos(gait+1.5)*0.026,0.032],[23,Math.sin(gait+Math.PI)*0.020,Math.abs(Math.sin(gait))*0.014,0.060],[24,-Math.sin(gait+Math.PI)*0.020,Math.abs(Math.sin(gait))*0.014,0.060],[25,Math.sin(gait)*0.034,Math.cos(gait)*0.024,0.042],[26,-Math.sin(gait)*0.034,Math.cos(gait)*0.024,0.042],[27,Math.sin(gait)*0.042,Math.abs(Math.cos(gait))*0.028,0.034],[28,-Math.sin(gait)*0.042,Math.abs(Math.cos(gait))*0.028,0.034]];
+              for(const [idx,mx,my,radius] of jointMoves){
+                const joint=joints[idx];if(!joint||joint.visibility<0.25)continue;
+                let dx=mx,dy=my;
+                if(rigAction==='wave'&&(idx===13||idx===15)){dx+=0.025*Math.sin(rawT*Math.PI*4);dy-=0.035*Math.abs(Math.sin(rawT*Math.PI*4));}
+                if(rigAction==='punch'&&(idx===13||idx===15)){dx+=0.05*Math.sin(rawT*Math.PI*3);dy-=0.012*Math.abs(Math.sin(rawT*Math.PI*3));}
+                if(rigAction==='kick'&&(idx===25||idx===27)){dx+=0.055*Math.sin(rawT*Math.PI*2);dy-=0.045*Math.abs(Math.sin(rawT*Math.PI*2));}
+                if(rigAction==='dance'){dx*=1.5;dy+=0.018*Math.sin(gait*2);}
+                const du=u-joint.x/W,dv=v-joint.y/H,weight=Math.exp(-(du*du+dv*dv)/(radius*radius))*joint.visibility;
+                offX+=dx*W*amp*weight;offY+=dy*H*amp*weight;
+              }
+            }
             if(effects.breeze){
               const wind=Math.sin(rawT*Math.PI*4+v*5+u*3)*W*0.007*intensityMul*(wHead*0.8+wChest*0.6+wLower*0.9);
               offX+=wind;
@@ -598,6 +644,7 @@ async function triggerVideoConversion(customOpts){
     prompt:promptVal,
     subjectMotion:customOpts?.subjectMotion||$('subjectMotion')?.value||'auto',
     camera:customOpts?.camera||$('camera').value,
+    rigAction:$('rigAction')?.value||'idle',
     duration:customOpts?.duration||Number($('duration').value),
     intensity:customOpts?.intensity||$('intensity').value,
     onProgress:(pct,msg)=>{
