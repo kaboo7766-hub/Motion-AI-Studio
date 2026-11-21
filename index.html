@@ -13,7 +13,7 @@
 <div class="side-bottom"><div class="mini-orb">✦</div><b>حوّل أفكارك إلى حركة</b><small>حرّك صورك بالطريقة التي تتخيلها</small></div>
 </aside>
 <main>
-<header class="topbar"><div class="crumb">مساحة العمل <span>/</span> <b>محرر الحركة</b></div><div class="top-actions"><button class="outline small" id="openApiConfigBtn">🔌 ربط محرك AI</button><button class="ghost" id="lang">EN</button><button class="ghost">؟</button><div class="avatar">T</div></div></header>
+<header class="topbar"><div class="crumb">مساحة العمل <span>/</span> <b>محرر الحركة</b></div><div class="top-actions"><span class="quality">⚡ محرك مجاني محلي</span><button class="ghost" id="lang">EN</button><button class="ghost">؟</button><div class="avatar">T</div></div></header>
 <section class="hero"><div class="hero-text"><div class="eyebrow">✦ محرّك الإبداع</div><h1>خلّي صورك <span>تتحرك</span></h1><p>اكتب الحركة اللي في خيالك، وابدأ في تحويل صورتك إلى فيديو حقيقي.</p></div><div class="hero-art"><div class="orbit o1"></div><div class="orbit o2"></div><div class="play-big">▶</div><span class="spark s1">✦</span><span class="spark s2">✧</span></div></section>
 <div class="workspace">
 <section class="preview-card panel"><div class="panel-head"><div><h2>معاينة وتحويل الفيديو</h2><small>عرض كامل للصورة والفيديو مع تحريك الأشخاص</small></div><span class="quality" id="renderBadge">LOCAL ENGINE</span></div>
@@ -43,7 +43,7 @@
 <div style="display:flex;gap:6px;flex-wrap:wrap">
 <button class="outline small" id="queueVideoBtn">＋ إضافة إلى قائمة المشاهد</button>
 <button class="outline small" id="fillFromCommandsBtn">✦ تعبئة من مكتبة الأوامر</button>
-<button class="outline small" id="runBatchBtn">⚡ تجهيز دفعة (حتى 10)</button>
+<button class="outline small" id="runBatchBtn">🎬 توليد المشهد التالي</button>
 <button class="outline small" id="resetQuotaBtn">مسح سجل الإنتاج</button>
 </div>
 </div>
@@ -84,42 +84,9 @@
 </div>
 
 <section class="panel api-panel" id="apiSection">
-<div class="panel-head">
-<div><h2>إعدادات المحرك الهجين (مجاني + AI احترافي)</h2><small>المحرك المجاني يعمل محلياً، والمحرك الاحترافي يستخدم Kling عبر fal.ai</small></div>
-<span class="lib-badge" id="apiStatusBadge">غير متصل (يعمل محلياً)</span>
-</div>
-<div class="api-grid">
-<div>
-<label class="label">مزود الخدمة (Provider)</label>
-<select id="apiProvider">
-<option value="local">محرك المتصفح المحلي (بدون API)</option>
-<option value="fal-proxy">AI احترافي عبر fal.ai (Kling 4.0 / Kling 3.0)</option>
-</select>
-</div>
-<div>
-<label class="label">موديل الذكاء الاصطناعي الاحترافي</label>
-<select id="apiEndpoint"><option value="kling/v4/image-to-video">Kling 4.0 — جودة عالية</option><option value="fal-ai/kling-video/v3/pro/image-to-video">Kling 3.0 Pro — سينمائي</option></select>
-</div>
-<div>
-<label class="label">مفتاح API</label>
-<input type="password" class="lib-search" id="apiKey" placeholder="للمزودات القديمة فقط — لا تضع FAL_KEY هنا">
-<small>ضع FAL_KEY و MOTION_API_ACCESS_CODE في Vercel Environment Variables. لا تضع FAL_KEY في المتصفح.</small>
-<label class="label" style="margin-top:10px">رمز الوصول الخاص بالمشروع (Access Code)</label>
-<input type="password" class="lib-search" id="apiAccessCode" placeholder="أدخل نفس قيمة MOTION_API_ACCESS_CODE في Vercel">
-</div>
-<div>
-<label class="label">رابط Proxy اختياري للمزودات المخصصة</label>
-<input type="text" class="lib-search" id="apiProxy" placeholder="اختياري: /api/video">
-</div>
-</div>
-<div class="action-row" style="margin-top:12px">
-<button class="primary small" id="saveApiBtn">💾 حفظ وتفعيل الربط</button>
-<button class="outline small" id="testApiBtn">🔌 اختبار الاتصال</button>
-<button class="outline small" id="clearApiBtn">إلغاء الربط والعودة للمحلي</button>
-</div>
-<div class="notice" style="margin-top:10px">
-الوضع المجاني المحلي يصنع حركة بصرية بسيطة داخل المتصفح، وليس تحريكاً بشرياً حقيقياً. وضع AI الاحترافي يرسل الصورة إلى Kling عبر خادم Vercel آمن؛ وقد تُخصم تكلفة حسب نموذج الفيديو ومدته. لا تضع مفتاح FAL_KEY في المتصفح.
-</div>
+<div class="panel-head"><div><h2>المحرك المجاني المحلي</h2><small>كل المعالجة تتم داخل متصفحك دون إرسال الصور إلى خدمات خارجية</small></div><span class="lib-badge">بدون API · بدون رصيد</span></div>
+<div class="notice">يستخدم البرنامج محرك Canvas وMesh محلياً لإنشاء ملف فيديو من الصورة. لا يحتاج إلى fal.ai أو Kling أو مفتاح سري أو بطاقة بنكية. جودة الحركة تعتمد على الصورة والمتصفح والجهاز؛ هذه محاكاة حركة ثنائية الأبعاد وليست توليداً بشرياً كاملاً بالذكاء الاصطناعي.</div>
+<div class="action-row"><button class="outline small" id="localEngineInfoBtn" type="button">ℹ️ معلومات المحرك</button></div>
 </section>
 
 <section class="panel batch-panel" id="batchSection">
